@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>TTL BIO-TECH 戰情中心 V98.13.3</title>
+<title>TTL BIO-TECH 戰情中心 V98.13.4</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00897b">
   <meta name="apple-mobile-web-app-title" content="TTL-Bio Dashboard">
@@ -62,6 +62,26 @@ header { height: var(--header-height); background: #fff; border-bottom: 1px soli
 .sales-table-row:hover{background:#fafcfc;}
 .detail-block-title{font-size:12px;font-weight:900;color:#78909c;margin:14px 0 8px;letter-spacing:.04em;}
 .comp-hint{font-size:11px;color:#90a4ae;margin-top:10px;}
+.sales-kpi-grid{display:none;}
+.sales-detail-grid{}
+.sales-section-card{}
+.sales-bar-section{}
+.sales-kpi-label{font-size:12px;font-weight:900;color:#78909c;line-height:1.35;}
+.sales-kpi-value{font-size:24px;font-weight:900;line-height:1.1;color:#263238;margin-top:6px;}
+.sales-kpi-value.rev{font-size:22px;}
+.sales-kpi-value.neutral{color:#1565c0;}
+@media (min-width:769px){
+  .expand-container{grid-template-columns:350px minmax(0,1fr) 1fr;gap:14px;}
+  .r-box{padding:5px 4px;}
+  .r-name{font-size:12px;}
+  .sales-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0 14px;}
+  .sales-kpi-box{background:#f8fbfc;border:1px solid #dfe8eb;border-radius:12px;padding:12px 14px;min-width:0;}
+  .sales-progress-stack{display:none;}
+  .sales-detail-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.85fr);gap:12px;align-items:start;margin-top:2px;}
+  .sales-section-card,.sales-bar-section{background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:12px 14px;}
+  .sales-section-card .detail-block-title,.sales-bar-section .detail-block-title{margin:0 0 10px;}
+  .sales-bar-section{margin-top:12px;}
+}
 @media (max-width:768px){
   .header-meta-stack{display:flex;align-items:flex-end;gap:2px;max-width:130px;}
   .report-date-badge{display:none;font-size:10px;max-width:120px;padding:3px 8px;}
@@ -692,7 +712,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 
 <div id="loading-mask">
   <div class="spinner"></div>
-  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.13.3)...</div>
+  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.13.4)...</div>
 </div>
 
 <div id="restoreWidget" onclick="toggleRestoreList(event)">
@@ -1136,7 +1156,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = "98.13.3";
+const APP_VERSION = "98.13.4";
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -1183,7 +1203,7 @@ const SALES_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQj5QLrtaWikG
 
 let DATA = { orders: [], inventory: [], sales: [], soldMap: {}, salesMap: new Map(), reportDateRaw: '', reportDateText: '' };
 const ANALYSIS_MODE_KEY = 'admin_analysis_mode';
-let ANALYSIS_MODE = localStorage.getItem(ANALYSIS_MODE_KEY) || 'period';
+let ANALYSIS_MODE = 'period';
 
 // ===== Settings Config (Departments / Payments) =====
 let CONFIG_DATA = { departments: [], payments: [] };
@@ -1315,21 +1335,13 @@ function getInventoryRowByCode(code){
   }catch(e){ return null; }
 }
 function getAnalysisModeMeta(){
-  return ANALYSIS_MODE === 'annual'
-    ? {
-        key:'annual',
-        label:'年度累積',
-        metricHead:'年度銷量差距',
-        qtyLabel:'年度銷量差距',
-        revLabel:'年度營收差距'
-      }
-    : {
-        key:'period',
-        label:'同期差距',
-        metricHead:'同期銷量差距',
-        qtyLabel:'同期銷量差距',
-        revLabel:'同期營收差距'
-      };
+  return {
+    key:'period',
+    label:'同期差距',
+    metricHead:'同期銷量差距',
+    qtyLabel:'同期銷量差距',
+    revLabel:'同期營收差距'
+  };
 }
 function getReportProgressRatio(){
   const src = String(DATA.reportDateRaw || DATA.reportDateText || '').trim();
@@ -1379,8 +1391,8 @@ function getSalesMetricsByCode(code){
     periodRevGap,
     ytdYoy,
     ytdProgress,
-    metricQty: ANALYSIS_MODE === 'annual' ? annualQtyGap : periodQtyGap,
-    metricRev: ANALYSIS_MODE === 'annual' ? annualRevGap : periodRevGap,
+    metricQty: periodQtyGap,
+    metricRev: periodRevGap,
     status: item ? item.status : '—',
     statusClass: item ? item.statusClass : 'st-ok',
     avg: item ? item.avg : 0,
@@ -1392,25 +1404,12 @@ function getSalesMetricsByCode(code){
 function renderAnalysisToolbar(){
   const bar = document.getElementById('analysisToolbar');
   if(!bar) return;
-  if(CURRENT_TAB !== 'inventory' && CURRENT_TAB !== 'sales') {
-    bar.style.display = 'none';
-    bar.innerHTML = '';
-    return;
-  }
-  const meta = getAnalysisModeMeta();
-  bar.style.display = 'flex';
-  bar.innerHTML = `
-    <div class="analysis-switch" role="tablist" aria-label="分析模式切換">
-      <button class="analysis-switch-btn ${ANALYSIS_MODE === 'period' ? 'active' : ''}" onclick="setAnalysisMode('period')">同期差距</button>
-      <button class="analysis-switch-btn ${ANALYSIS_MODE === 'annual' ? 'active' : ''}" onclick="setAnalysisMode('annual')">年度累積</button>
-    </div>
-  `;
+  bar.style.display = 'none';
+  bar.innerHTML = '';
 }
 function setAnalysisMode(mode){
-  const next = mode === 'annual' ? 'annual' : 'period';
-  if(ANALYSIS_MODE === next) return;
-  ANALYSIS_MODE = next;
-  localStorage.setItem(ANALYSIS_MODE_KEY, ANALYSIS_MODE);
+  ANALYSIS_MODE = 'period';
+  try { localStorage.removeItem(ANALYSIS_MODE_KEY); } catch(e) {}
   renderAnalysisToolbar();
   if(CURRENT_TAB === 'inventory' || CURRENT_TAB === 'sales') renderCurrentTable();
 }
@@ -1435,35 +1434,64 @@ function buildSalesDetailBodyHtml(code){
   const revMetricText = '$' + formatDeltaNumber(m.metricRev);
   const qtyMetricClass = signedClass(m.metricQty);
   const revMetricClass = signedClass(m.metricRev);
-  const modeLabel = getAnalysisModeMeta().label;
+  const meta = getAnalysisModeMeta();
   return `
     <div class="info-section-title">${titleName}</div>
-    <div class="analysis-mode-pill">${modeLabel}｜資料日期 ${getReportDateText()}</div>
+    <div class="analysis-mode-pill">${meta.label}｜資料日期 ${getReportDateText()}</div>
     <div class="mc-compact-card" style="border:none;box-shadow:none;padding:0;margin-top:10px">
-      <div class="detail-block-title">銷售進度</div>
-      <div class="mc-row"><span>${getAnalysisModeMeta().qtyLabel}</span><span class="mc-row-val ${qtyMetricClass}">${qtyMetricText}</span></div>
-      <div class="mc-row"><span>${getAnalysisModeMeta().revLabel}</span><span class="mc-row-val ${revMetricClass}">${revMetricText}</span></div>
-      <div class="mc-row"><span>YTD YoY</span><span class="mc-row-val" style="color:${yoyCol}">${m.ytdYoy}%</span></div>
-      <div class="detail-block-title">銷售對照</div>
-      <div class="mc-row"><span>今年營收</span><span class="mc-row-val">$${Number(sales.thisRev || 0).toLocaleString()}</span></div>
-      <div class="mc-row"><span>去年營收</span><span class="mc-row-val">$${Number(sales.lastRev || 0).toLocaleString()}</span></div>
-      <div class="mc-row"><span>營收差額</span><span class="mc-row-val ${signedClass(m.annualRevGap)}">$${formatDeltaNumber(m.annualRevGap)}</span></div>
-      <div class="mc-row"><span>YTD Progress</span><span class="mc-row-val" style="color:#1565c0">${m.ytdProgress}%</span></div>
-      <hr style="border-top:1px dashed #eee;margin:10px 0">
-      <div class="mc-row"><span>今年銷量</span><span class="mc-row-val">${Number(sales.thisQty || 0).toLocaleString()}</span></div>
-      <div class="mc-row"><span>去年銷量</span><span class="mc-row-val">${Number(sales.lastQty || 0).toLocaleString()}</span></div>
-      <div class="mc-row"><span>銷量差額</span><span class="mc-row-val ${signedClass(m.annualQtyGap)}">${formatDeltaNumber(m.annualQtyGap)}</span></div>
-      <div class="detail-block-title">庫存連動</div>
-      <div class="mc-row"><span>月均銷</span><span class="mc-row-val">${item ? Number(item.avg || 0).toLocaleString() : '—'}</span></div>
-      <div class="mc-row"><span>總庫存</span><span class="mc-row-val">${item ? Number(item.stock || 0).toLocaleString() : '—'}</span></div>
-      <div class="mc-row"><span>供銷月</span><span class="mc-row-val">${item ? item.supplyMonthsDisplay : '—'}</span></div>
-      <div class="mc-row"><span>狀態</span><span class="mc-row-val">${item ? `<span class="st-badge ${item.statusClass}">${item.status}</span>` : '—'}</span></div>
-      <div class="comp-container" style="margin-top:15px">
-        <div class="comp-row"><span class="comp-label">去年銷量</span><div class="comp-track"><div class="comp-bar" style="width:${(Number(sales.lastQty || 0)/maxVal)*100}%;background:#9e9e9e"></div></div><span class="comp-val">${Number(sales.lastQty || 0).toLocaleString()}</span></div>
-        <div class="comp-row"><span class="comp-label">同期銷量</span><div class="comp-track"><div class="comp-bar" style="width:${(Number(m.samePeriodQty || 0)/maxVal)*100}%;background:#ffb300"></div></div><span class="comp-val">${Number(m.samePeriodQty || 0).toLocaleString()}</span></div>
-        <div class="comp-row"><span class="comp-label">今年銷量</span><div class="comp-track"><div class="comp-bar" style="width:${(Number(sales.thisQty || 0)/maxVal)*100}%;background:${Number(sales.thisQty || 0) >= Number(m.samePeriodQty || 0) ? '#d32f2f' : '#0288d1'}"></div></div><span class="comp-val">${Number(sales.thisQty || 0).toLocaleString()}</span></div>
+      <div class="sales-kpi-grid">
+        <div class="sales-kpi-box">
+          <div class="sales-kpi-label">${meta.qtyLabel}</div>
+          <div class="sales-kpi-value ${qtyMetricClass}">${qtyMetricText}</div>
+        </div>
+        <div class="sales-kpi-box">
+          <div class="sales-kpi-label">${meta.revLabel}</div>
+          <div class="sales-kpi-value rev ${revMetricClass}">${revMetricText}</div>
+        </div>
+        <div class="sales-kpi-box">
+          <div class="sales-kpi-label">YTD YoY</div>
+          <div class="sales-kpi-value" style="color:${yoyCol}">${m.ytdYoy}%</div>
+        </div>
+        <div class="sales-kpi-box">
+          <div class="sales-kpi-label">YTD Progress</div>
+          <div class="sales-kpi-value neutral">${m.ytdProgress}%</div>
+        </div>
       </div>
-      <div class="comp-hint">同期銷量：依資料同期基準比例估算</div>
+      <div class="sales-progress-stack">
+        <div class="detail-block-title">銷售進度</div>
+        <div class="mc-row"><span>${meta.qtyLabel}</span><span class="mc-row-val ${qtyMetricClass}">${qtyMetricText}</span></div>
+        <div class="mc-row"><span>${meta.revLabel}</span><span class="mc-row-val ${revMetricClass}">${revMetricText}</span></div>
+        <div class="mc-row"><span>YTD YoY</span><span class="mc-row-val" style="color:${yoyCol}">${m.ytdYoy}%</span></div>
+      </div>
+      <div class="sales-detail-grid">
+        <div class="sales-section-card">
+          <div class="detail-block-title">銷售對照</div>
+          <div class="mc-row"><span>今年營收</span><span class="mc-row-val">$${Number(sales.thisRev || 0).toLocaleString()}</span></div>
+          <div class="mc-row"><span>去年營收</span><span class="mc-row-val">$${Number(sales.lastRev || 0).toLocaleString()}</span></div>
+          <div class="mc-row"><span>營收差額</span><span class="mc-row-val ${signedClass(m.annualRevGap)}">$${formatDeltaNumber(m.annualRevGap)}</span></div>
+          <div class="mc-row"><span>YTD Progress</span><span class="mc-row-val" style="color:#1565c0">${m.ytdProgress}%</span></div>
+          <hr style="border-top:1px dashed #eee;margin:10px 0">
+          <div class="mc-row"><span>今年銷量</span><span class="mc-row-val">${Number(sales.thisQty || 0).toLocaleString()}</span></div>
+          <div class="mc-row"><span>去年銷量</span><span class="mc-row-val">${Number(sales.lastQty || 0).toLocaleString()}</span></div>
+          <div class="mc-row"><span>銷量差額</span><span class="mc-row-val ${signedClass(m.annualQtyGap)}">${formatDeltaNumber(m.annualQtyGap)}</span></div>
+        </div>
+        <div class="sales-section-card">
+          <div class="detail-block-title">庫存連動</div>
+          <div class="mc-row"><span>月均銷</span><span class="mc-row-val">${item ? Number(item.avg || 0).toLocaleString() : '—'}</span></div>
+          <div class="mc-row"><span>總庫存</span><span class="mc-row-val">${item ? Number(item.stock || 0).toLocaleString() : '—'}</span></div>
+          <div class="mc-row"><span>供銷月</span><span class="mc-row-val">${item ? item.supplyMonthsDisplay : '—'}</span></div>
+          <div class="mc-row"><span>狀態</span><span class="mc-row-val">${item ? `<span class="st-badge ${item.statusClass}">${item.status}</span>` : '—'}</span></div>
+        </div>
+      </div>
+      <div class="sales-bar-section">
+        <div class="detail-block-title">銷量條對照</div>
+        <div class="comp-container" style="margin-top:0;padding-top:0;border-top:none">
+          <div class="comp-row"><span class="comp-label">去年銷量</span><div class="comp-track"><div class="comp-bar" style="width:${(Number(sales.lastQty || 0)/maxVal)*100}%;background:#9e9e9e"></div></div><span class="comp-val">${Number(sales.lastQty || 0).toLocaleString()}</span></div>
+          <div class="comp-row"><span class="comp-label">同期銷量</span><div class="comp-track"><div class="comp-bar" style="width:${(Number(m.samePeriodQty || 0)/maxVal)*100}%;background:#ffb300"></div></div><span class="comp-val">${Number(m.samePeriodQty || 0).toLocaleString()}</span></div>
+          <div class="comp-row"><span class="comp-label">今年銷量</span><div class="comp-track"><div class="comp-bar" style="width:${(Number(sales.thisQty || 0)/maxVal)*100}%;background:${Number(sales.thisQty || 0) >= Number(m.samePeriodQty || 0) ? '#d32f2f' : '#0288d1'}"></div></div><span class="comp-val">${Number(sales.thisQty || 0).toLocaleString()}</span></div>
+        </div>
+        <div class="comp-hint">同期銷量：依資料同期基準比例估算</div>
+      </div>
     </div>
   `;
 }
@@ -4081,7 +4109,7 @@ async function submitAuth(){
   }
 }
 
-// === Non-blocking background auth_verify (V98.13.3) ===
+// === Non-blocking background auth_verify (V98.13.4) ===
 // UI gating uses local exp (zero-lag). We only call auth_verify in the background
 // to retain server-side revoke ability without creating UI "break points".
 const AUTH_BG_VERIFY_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
