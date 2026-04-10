@@ -1303,6 +1303,11 @@ function formatSignedNumber(v, prefix='') {
   if (n < 0) return `-${prefix}${Math.abs(n).toLocaleString()}`;
   return `${prefix}${Math.abs(n).toLocaleString()}`;
 }
+function formatDeltaNumber(v, prefix='') {
+  const n = Number(v || 0);
+  if (n < 0) return `-${prefix}${Math.abs(n).toLocaleString()}`;
+  return `${prefix}${Math.abs(n).toLocaleString()}`;
+}
 function getInventoryRowByCode(code){
   try{
     const n = normCode(code);
@@ -1311,24 +1316,65 @@ function getInventoryRowByCode(code){
 }
 function getAnalysisModeMeta(){
   return ANALYSIS_MODE === 'annual'
-    ? { key:'annual', label:'年度累積', qtyLabel:'年度累積', revLabel:'年度累積營收' }
-    : { key:'period', label:'同期差距', qtyLabel:'同期差距', revLabel:'同期營收差距' };
+    ? {
+        key:'annual',
+        label:'年度累積',
+        metricHead:'年度銷量差距',
+        qtyLabel:'年度銷量差距',
+        revLabel:'年度營收差距'
+      }
+    : {
+        key:'period',
+        label:'同期差距',
+        metricHead:'同期銷量差距',
+        qtyLabel:'同期銷量差距',
+        revLabel:'同期營收差距'
+      };
+}
+function getReportProgressRatio(){
+  const src = String(DATA.reportDateRaw || DATA.reportDateText || '').trim();
+  if (!src) return 1;
+
+  let m = src.match(/(?:20\d{2}|\d{2,3})[^\d]?(\d{1,2})[^\d]?(\d{1,2})/);
+  if (!m) m = src.match(/^(\d{1,2})[^\d]?(\d{1,2})$/);
+  if (!m) m = src.match(/(\d{1,2})[^\d]+(\d{1,2})/);
+
+  const month = Math.max(1, Math.min(12, Number(m?.[1] || 12)));
+  const day = Math.max(1, Math.min(31, Number(m?.[2] || 31)));
+  const monthDays = [31,28,31,30,31,30,31,31,30,31,30,31];
+  const safeDay = Math.min(day, monthDays[month - 1] || 31);
+  const dayOfYear = monthDays.slice(0, month - 1).reduce((a,b) => a + b, 0) + safeDay;
+  return Math.max(0, Math.min(1, dayOfYear / 365));
 }
 function getSalesMetricsByCode(code){
   const sales = getSalesRowByCode(code) || { code, name:'', lastQty:0, thisQty:0, yoy:0, lastRev:0, thisRev:0 };
   const item = getInventoryRowByCode(code);
-  const qtyGap = Number((sales.thisQty || 0) - (sales.lastQty || 0));
-  const revGap = Number((sales.thisRev || 0) - (sales.lastRev || 0));
+  const progressRatio = getReportProgressRatio();
+  const lastQty = Number(sales.lastQty || 0);
+  const thisQty = Number(sales.thisQty || 0);
+  const lastRev = Number(sales.lastRev || 0);
+  const thisRev = Number(sales.thisRev || 0);
+  const samePeriodQty = Math.round(lastQty * progressRatio);
+  const samePeriodRev = Math.round(lastRev * progressRatio);
+  const annualQtyGap = Number(thisQty - lastQty);
+  const annualRevGap = Number(thisRev - lastRev);
+  const periodQtyGap = Number(thisQty - samePeriodQty);
+  const periodRevGap = Number(thisRev - samePeriodRev);
   return {
     code: code,
     item,
     sales,
-    annualQty: Number(sales.thisQty || 0),
-    annualRev: Number(sales.thisRev || 0),
-    periodQtyGap: qtyGap,
-    periodRevGap: revGap,
-    metricQty: ANALYSIS_MODE === 'annual' ? Number(sales.thisQty || 0) : qtyGap,
-    metricRev: ANALYSIS_MODE === 'annual' ? Number(sales.thisRev || 0) : revGap,
+    progressRatio,
+    samePeriodQty,
+    samePeriodRev,
+    annualQty: annualQtyGap,
+    annualRev: annualRevGap,
+    annualQtyGap,
+    annualRevGap,
+    periodQtyGap,
+    periodRevGap,
+    metricQty: ANALYSIS_MODE === 'annual' ? annualQtyGap : periodQtyGap,
+    metricRev: ANALYSIS_MODE === 'annual' ? annualRevGap : periodRevGap,
     status: item ? item.status : '—',
     statusClass: item ? item.statusClass : 'st-ok',
     avg: item ? item.avg : 0,
@@ -1377,39 +1423,40 @@ function buildSalesDetailBodyHtml(code){
   const sales = m.sales || { lastQty:0, thisQty:0, yoy:0, lastRev:0, thisRev:0 };
   const item = m.item;
   const titleName = (item && item.name) || sales.name || code;
-  const maxVal = Math.max(sales.lastQty || 0, sales.thisQty || 0, 1);
+  const maxVal = Math.max(sales.lastQty || 0, m.samePeriodQty || 0, sales.thisQty || 0, 1);
   const yoyCol = sales.yoy >= 0 ? '#d32f2f' : '#388e3c';
-  const qtyMetricText = ANALYSIS_MODE === 'annual' ? Number(m.metricQty || 0).toLocaleString() : formatSignedNumber(m.metricQty);
-  const revMetricText = ANALYSIS_MODE === 'annual' ? '$' + Number(m.metricRev || 0).toLocaleString() : '$' + formatSignedNumber(m.metricRev);
-  const qtyMetricClass = ANALYSIS_MODE === 'annual' ? '' : signedClass(m.metricQty);
-  const revMetricClass = ANALYSIS_MODE === 'annual' ? '' : signedClass(m.metricRev);
+  const qtyMetricText = formatDeltaNumber(m.metricQty);
+  const revMetricText = '$' + formatDeltaNumber(m.metricRev);
+  const qtyMetricClass = signedClass(m.metricQty);
+  const revMetricClass = signedClass(m.metricRev);
   const modeLabel = getAnalysisModeMeta().label;
   return `
     <div class="info-section-title">${titleName}</div>
     <div class="analysis-mode-pill">${modeLabel}｜資料日期 ${getReportDateText()}</div>
     <div class="mc-compact-card" style="border:none;box-shadow:none;padding:0;margin-top:10px">
-      <div class="detail-block-title">本次重點</div>
+      <div class="detail-block-title">銷售進度</div>
       <div class="mc-row"><span>${getAnalysisModeMeta().qtyLabel}</span><span class="mc-row-val ${qtyMetricClass}">${qtyMetricText}</span></div>
       <div class="mc-row"><span>${getAnalysisModeMeta().revLabel}</span><span class="mc-row-val ${revMetricClass}">${revMetricText}</span></div>
       <div class="mc-row"><span>YoY</span><span class="mc-row-val" style="color:${yoyCol}">${sales.yoy}%</span></div>
       <div class="detail-block-title">銷售對照</div>
       <div class="mc-row"><span>今年營收</span><span class="mc-row-val">$${Number(sales.thisRev || 0).toLocaleString()}</span></div>
       <div class="mc-row"><span>去年營收</span><span class="mc-row-val">$${Number(sales.lastRev || 0).toLocaleString()}</span></div>
-      <div class="mc-row"><span>營收差額</span><span class="mc-row-val ${signedClass(m.periodRevGap)}">$${formatSignedNumber(m.periodRevGap)}</span></div>
+      <div class="mc-row"><span>營收差額</span><span class="mc-row-val ${signedClass(m.annualRevGap)}">$${formatDeltaNumber(m.annualRevGap)}</span></div>
       <hr style="border-top:1px dashed #eee;margin:10px 0">
       <div class="mc-row"><span>今年銷量</span><span class="mc-row-val">${Number(sales.thisQty || 0).toLocaleString()}</span></div>
       <div class="mc-row"><span>去年銷量</span><span class="mc-row-val">${Number(sales.lastQty || 0).toLocaleString()}</span></div>
-      <div class="mc-row"><span>銷量差額</span><span class="mc-row-val ${signedClass(m.periodQtyGap)}">${formatSignedNumber(m.periodQtyGap)}</span></div>
+      <div class="mc-row"><span>銷量差額</span><span class="mc-row-val ${signedClass(m.annualQtyGap)}">${formatDeltaNumber(m.annualQtyGap)}</span></div>
       <div class="detail-block-title">庫存連動</div>
       <div class="mc-row"><span>月均銷</span><span class="mc-row-val">${item ? Number(item.avg || 0).toLocaleString() : '—'}</span></div>
       <div class="mc-row"><span>總庫存</span><span class="mc-row-val">${item ? Number(item.stock || 0).toLocaleString() : '—'}</span></div>
       <div class="mc-row"><span>供銷月</span><span class="mc-row-val">${item ? item.supplyMonthsDisplay : '—'}</span></div>
       <div class="mc-row"><span>狀態</span><span class="mc-row-val">${item ? `<span class="st-badge ${item.statusClass}">${item.status}</span>` : '—'}</span></div>
       <div class="comp-container" style="margin-top:15px">
-        <div class="comp-row"><span class="comp-label">去年</span><div class="comp-track"><div class="comp-bar" style="width:${(Number(sales.lastQty || 0)/maxVal)*100}%;background:#9e9e9e"></div></div><span class="comp-val">${Number(sales.lastQty || 0).toLocaleString()}</span></div>
-        <div class="comp-row"><span class="comp-label">今年</span><div class="comp-track"><div class="comp-bar" style="width:${(Number(sales.thisQty || 0)/maxVal)*100}%;background:${Number(sales.thisQty || 0) >= Number(sales.lastQty || 0) ? '#d32f2f' : '#0288d1'}"></div></div><span class="comp-val">${Number(sales.thisQty || 0).toLocaleString()}</span></div>
+        <div class="comp-row"><span class="comp-label">去年銷量</span><div class="comp-track"><div class="comp-bar" style="width:${(Number(sales.lastQty || 0)/maxVal)*100}%;background:#9e9e9e"></div></div><span class="comp-val">${Number(sales.lastQty || 0).toLocaleString()}</span></div>
+        <div class="comp-row"><span class="comp-label">同期銷量</span><div class="comp-track"><div class="comp-bar" style="width:${(Number(m.samePeriodQty || 0)/maxVal)*100}%;background:#ffb300"></div></div><span class="comp-val">${Number(m.samePeriodQty || 0).toLocaleString()}</span></div>
+        <div class="comp-row"><span class="comp-label">今年銷量</span><div class="comp-track"><div class="comp-bar" style="width:${(Number(sales.thisQty || 0)/maxVal)*100}%;background:${Number(sales.thisQty || 0) >= Number(m.samePeriodQty || 0) ? '#d32f2f' : '#0288d1'}"></div></div><span class="comp-val">${Number(sales.thisQty || 0).toLocaleString()}</span></div>
       </div>
-      <div class="comp-hint">同期基準日固定取自 Rank_Pieces A1。</div>
+      <div class="comp-hint">資料同期基準比例估算</div>
     </div>
   `;
 }
@@ -2868,8 +2915,8 @@ function openSortSheet() {
     const optsDiv = document.getElementById('sortOptions');
     optsDiv.innerHTML = "";
     let opts = [];
-    if(CURRENT_TAB === 'inventory') { opts = [ {k:'code',l:'料號'}, {k:'name',l:'品名'}, {k:'analysisMetric',l:getAnalysisModeMeta().label}, {k:'stock',l:'庫存'}, {k:'avg',l:'月均銷'}, {k:'supplyMonths',l:'供銷月數'}, {k:'statusVal',l:'狀態(健康度)'} ]; }
-    else if (CURRENT_TAB === 'sales') { opts = [ {k:'code',l:'料號'}, {k:'name',l:'品名'}, {k:'analysisMetric',l:getAnalysisModeMeta().label}, {k:'yoy',l:'YoY'}, {k:'statusVal',l:'狀態'} ]; }
+    if(CURRENT_TAB === 'inventory') { opts = [ {k:'code',l:'料號'}, {k:'name',l:'品名'}, {k:'analysisMetric',l:getAnalysisModeMeta().metricHead}, {k:'stock',l:'庫存'}, {k:'avg',l:'月均銷'}, {k:'supplyMonths',l:'供銷月數'}, {k:'statusVal',l:'狀態(健康度)'} ]; }
+    else if (CURRENT_TAB === 'sales') { opts = [ {k:'code',l:'料號'}, {k:'name',l:'品名'}, {k:'analysisMetric',l:getAnalysisModeMeta().metricHead}, {k:'yoy',l:'YoY'}, {k:'statusVal',l:'狀態'} ]; }
     else if (CURRENT_TAB === 'orders') { 
         opts = [ 
             {k:'id',l:'單號'}, {k:'time',l:'時間'}, {k:'total',l:'金額'}, 
@@ -2935,7 +2982,7 @@ if(SORT.key) {
         const sortVal = (row) => {
             if(SORT.key === 'analysisMetric') {
                 const metrics = getSalesMetricsByCode(row.code);
-                if(CURRENT_TAB === 'inventory') return ANALYSIS_MODE === 'annual' ? (row.yearAccumFromSheet ?? metrics.annualQty) : (row.samePeriodGapFromSheet ?? metrics.periodQtyGap);
+                if(CURRENT_TAB === 'inventory') return metrics.metricQty;
                 return metrics.metricQty;
             }
             if(SORT.key === 'statusVal') { const inv = getInventoryRowByCode(row.code); return inv ? inv.statusVal : -1; }
@@ -2981,7 +3028,7 @@ if(SORT.key) {
                                 <span class="st-badge ${i.statusClass}" style="transform:scale(0.8)">${i.status}</span>
                              </div>
                              <div style="font-size:11px;color:#90a4ae">
-                                ${getAnalysisModeMeta().label} <span style="font-size:120%;color:${ANALYSIS_MODE==='annual'?'#455a64':i.statusColor};font-weight:700;margin:0 2px">${ANALYSIS_MODE==='annual' ? Number((i.yearAccumFromSheet ?? getSalesMetricsByCode(i.code).annualQty) || 0).toLocaleString() : formatSignedNumber((i.samePeriodGapFromSheet ?? getSalesMetricsByCode(i.code).periodQtyGap) || 0)}</span> | 
+                                ${getAnalysisModeMeta().metricHead} <span style="font-size:120%;color:${signedClass(getSalesMetricsByCode(i.code).metricQty)==='val-up' ? '#d32f2f' : (signedClass(getSalesMetricsByCode(i.code).metricQty)==='val-down' ? '#388e3c' : '#455a64')};font-weight:700;margin:0 2px">${formatDeltaNumber(getSalesMetricsByCode(i.code).metricQty || 0)}</span> | 
                                 可供 <span style="font-size:120%;color:${i.statusColor};font-weight:700;margin:0 2px">${i.supplyMonthsDisplay}</span>${i.supplyMonthsDisplay==='—'?'':' 月'} 
                              </div>
                         </div>
@@ -3014,8 +3061,8 @@ if(SORT.key) {
             list.forEach(s => {
                 const metric = getSalesMetricsByCode(s.code);
                 const yoyColor = s.yoy >= 0 ? '#d32f2f' : '#388e3c';
-                const metricLabel = getAnalysisModeMeta().label;
-                const metricText = ANALYSIS_MODE === 'annual' ? `${metric.metricQty.toLocaleString()}` : formatSignedNumber(metric.metricQty);
+                const metricLabel = getAnalysisModeMeta().metricHead;
+                const metricText = formatDeltaNumber(metric.metricQty);
                 const card = document.createElement('div');
                 card.className = 'm-compact-card';
                 card.id = 'card-' + s.code;
@@ -3078,14 +3125,14 @@ if(SORT.key) {
         cardContainer.innerHTML = "";
         let html = "";
         if (CURRENT_TAB === 'inventory') {
-            const metricHead = getAnalysisModeMeta().label;
+            const metricHead = getAnalysisModeMeta().metricHead;
             html = `<thead><tr><th style="width:50px"><span class="material-icons-round close-all-btn" onclick="closeAllRegions()">indeterminate_check_box</span></th>${getSortHeader('code','物料')}${getSortHeader('name','產品')}${getSortHeader('analysisMetric', metricHead)}${getSortHeader('avg','月均銷')}${getSortHeader('stock','總庫存(M)')}${getSortHeader('supplyMonths','預估供銷月')}${getSortHeader('statusVal','狀態')}</tr></thead><tbody>`;
             list.forEach((i) => {
                 const isOpen = (String(i.code) === String(AUTO_EXPAND_CODE));
                 const metric = getSalesMetricsByCode(i.code);
-                const metricRaw = ANALYSIS_MODE === 'annual' ? (i.yearAccumFromSheet ?? metric.annualQty) : (i.samePeriodGapFromSheet ?? metric.periodQtyGap);
-                const metricText = ANALYSIS_MODE === 'annual' ? Number(metricRaw || 0).toLocaleString() : formatSignedNumber(metricRaw || 0);
-                const metricClass = ANALYSIS_MODE === 'annual' ? '' : signedClass(metricRaw || 0);
+                const metricRaw = metric.metricQty;
+                const metricText = formatDeltaNumber(metricRaw || 0);
+                const metricClass = signedClass(metricRaw || 0);
                 let salesHtml = buildSalesDetailBodyHtml(i.code);
                 let infoHtml = i.info.map(inf => `<div class="info-line"><span>${inf.name}</span><b>${inf.val}</b></div>`).join("");
                 let regionHtml = i.regions.map(r => `<div class="r-box" style="background:${r.qty>0?`rgba(0,137,123,${0.1+(r.qty/Math.max(...i.regions.map(x=>x.qty),1))*0.9})`:'#eee'};color:${(r.qty/Math.max(...i.regions.map(x=>x.qty),1))>0.5?'#fff':'#333'}"><span class="r-name">${getShortRegionName(r.name)}</span><span class="r-qty">${r.qty}</span></div>`).join("");
@@ -3093,12 +3140,12 @@ if(SORT.key) {
             });
         }
         else if (CURRENT_TAB === 'sales') {
-            const metricHead = getAnalysisModeMeta().label;
+            const metricHead = getAnalysisModeMeta().metricHead;
             html = `<thead><tr>${getSortHeader('code','物料')}${getSortHeader('name','品名')}${getSortHeader('analysisMetric', metricHead)}${getSortHeader('yoy','YoY')}${getSortHeader('statusVal','狀態')}</tr></thead><tbody>`;
             list.forEach(s => {
                 const metric = getSalesMetricsByCode(s.code);
-                const metricText = ANALYSIS_MODE === 'annual' ? metric.metricQty.toLocaleString() : formatSignedNumber(metric.metricQty);
-                html += `<tr id="row-${s.code}" class="sales-table-row" onclick="openInfoModal('sales', '${String(s.code).replace(/'/g, "\\'")}')"><td style="font-size:14px;color:#888">${s.code} <span class="material-icons-round mc-icon-btn hide ${HIDDEN_STOCK.has(s.code) ? 'active' : '' }" onclick="event.stopPropagation(); toggleHidden('${s.code}')" style="font-size:16px;vertical-align:middle;margin-left:4px" title="隱藏/顯示">visibility_off</span></td><td class="prod-name-cell">${s.name}</td><td><span class="analysis-metric ${ANALYSIS_MODE === 'annual' ? '' : signedClass(metric.metricQty)}">${metricText}</span><span class="analysis-metric-sub">${metricHead}</span></td><td class="${s.yoy>=0?'val-up':'val-down'}">${s.yoy}%</td><td>${metric.item ? `<span class="st-badge ${metric.item.statusClass}">${metric.item.status}</span>` : '—'}</td></tr>`;
+                const metricText = formatDeltaNumber(metric.metricQty);
+                html += `<tr id="row-${s.code}" class="sales-table-row" onclick="openInfoModal('sales', '${String(s.code).replace(/'/g, "\\'")}')"><td style="font-size:14px;color:#888">${s.code} <span class="material-icons-round mc-icon-btn hide ${HIDDEN_STOCK.has(s.code) ? 'active' : '' }" onclick="event.stopPropagation(); toggleHidden('${s.code}')" style="font-size:16px;vertical-align:middle;margin-left:4px" title="隱藏/顯示">visibility_off</span></td><td class="prod-name-cell">${s.name}</td><td><span class="analysis-metric ${signedClass(metric.metricQty)}">${metricText}</span><span class="analysis-metric-sub">${metricHead}</span></td><td class="${s.yoy>=0?'val-up':'val-down'}">${s.yoy}%</td><td>${metric.item ? `<span class="st-badge ${metric.item.statusClass}">${metric.item.status}</span>` : '—'}</td></tr>`;
             });
         }
                 else if (CURRENT_TAB === 'orders') {
