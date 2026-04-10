@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>TTL BIO-TECH 戰情中心 V98.13.2</title>
+<title>TTL BIO-TECH 戰情中心 V98.13.3</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00897b">
   <meta name="apple-mobile-web-app-title" content="TTL-Bio Dashboard">
@@ -692,7 +692,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 
 <div id="loading-mask">
   <div class="spinner"></div>
-  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.13.2)...</div>
+  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.13.3)...</div>
 </div>
 
 <div id="restoreWidget" onclick="toggleRestoreList(event)">
@@ -1136,7 +1136,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = "98.13.2";
+const APP_VERSION = "98.13.3";
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -1957,6 +1957,10 @@ function processSales(rows) {
   // Robust header/data-start detection for QUERY outputs (prevents skipping the first data row)
   const clean = (v) => (v || "").toString().trim();
   const looksLikeCode = (v) => /^\d{6,}(-\d+)?$/.test(clean(v));
+  const isSummaryRow = (code, name) => {
+    const t = `${clean(code)} ${clean(name)}`;
+    return /合計|總計|小計|subtotal|total/i.test(t);
+  };
 
   // 1) Prefer explicit header row containing "物料/料號"
   let headerIdx = -1;
@@ -1985,31 +1989,58 @@ function processSales(rows) {
   }
 
   const nameToCodeMap = new Map();
-  DATA.inventory.forEach(i => nameToCodeMap.set(normalizeStr(i.name), i.code));
+  const codeToNameMap = new Map();
+  DATA.inventory.forEach(i => {
+    const invName = clean(i.name);
+    const invCode = normCode(i.code || "");
+    if (invName && invCode) nameToCodeMap.set(normalizeStr(invName), invCode);
+    if (invCode && invName && !codeToNameMap.has(invCode)) codeToNameMap.set(invCode, invName);
+  });
 
   const num = (x) => (Number((x || "0").toString().replace(/,/g, '')) || 0);
+  const salesByCode = new Map();
 
-  DATA.sales = [];
   for (let i = dataStart; i < rows.length; i++) {
     const r = rows[i] || [];
     const rawCode = clean(r[0]);
     const rawName = clean(r[1] || r[0] || "");
-    if (!rawCode && !rawName) continue;
+    if ((!rawCode && !rawName) || isSummaryRow(rawCode, rawName)) continue;
     if (rawCode.includes("物料") || rawCode.includes("料號")) continue;
 
     const matchedCode = nameToCodeMap.get(normalizeStr(rawName));
-    const code = matchedCode || normCode(rawCode || "-");
+    const fallbackCode = normCode(rawCode || "-");
+    const code = matchedCode || fallbackCode;
     if (!code) continue;
 
     const lastRev = num(r[2]);
     const thisRev = num(r[3]);
     const lastQty = num(r[4]);
     const thisQty = num(r[5]);
-    const yoyVal = lastRev > 0 ? ((thisRev - lastRev) / lastRev * 100) : (thisRev > 0 ? 100 : 0);
-    const yoy = Number(yoyVal.toFixed(1));
+    const displayName = codeToNameMap.get(code) || rawName || code;
 
-    DATA.sales.push({ code, name: rawName || "", lastRev, thisRev, lastQty, thisQty, yoy });
+    if (!salesByCode.has(code)) {
+      salesByCode.set(code, {
+        code,
+        name: displayName,
+        lastRev: 0,
+        thisRev: 0,
+        lastQty: 0,
+        thisQty: 0
+      });
+    }
+
+    const acc = salesByCode.get(code);
+    acc.lastRev += lastRev;
+    acc.thisRev += thisRev;
+    acc.lastQty += lastQty;
+    acc.thisQty += thisQty;
+    if (!acc.name && displayName) acc.name = displayName;
   }
+
+  DATA.sales = Array.from(salesByCode.values()).map(s => {
+    const yoyVal = s.lastRev > 0 ? ((s.thisRev - s.lastRev) / s.lastRev * 100) : (s.thisRev > 0 ? 100 : 0);
+    return { ...s, yoy: Number(yoyVal.toFixed(1)) };
+  });
 
   // Build lookup map for robust code matching
   DATA.salesMap = new Map();
@@ -4050,7 +4081,7 @@ async function submitAuth(){
   }
 }
 
-// === Non-blocking background auth_verify (V98.13.2) ===
+// === Non-blocking background auth_verify (V98.13.3) ===
 // UI gating uses local exp (zero-lag). We only call auth_verify in the background
 // to retain server-side revoke ability without creating UI "break points".
 const AUTH_BG_VERIFY_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
