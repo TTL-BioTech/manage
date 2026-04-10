@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>TTL BIO-TECH 戰情中心 V98.13.0</title>
+<title>TTL BIO-TECH 戰情中心 V98.13.2</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00897b">
   <meta name="apple-mobile-web-app-title" content="TTL-Bio Dashboard">
@@ -692,7 +692,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 
 <div id="loading-mask">
   <div class="spinner"></div>
-  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.13.0)...</div>
+  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.13.2)...</div>
 </div>
 
 <div id="restoreWidget" onclick="toggleRestoreList(event)">
@@ -1136,7 +1136,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = "98.13.0";
+const APP_VERSION = "98.13.2";
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -1360,6 +1360,10 @@ function getSalesMetricsByCode(code){
   const annualRevGap = Number(thisRev - lastRev);
   const periodQtyGap = Number(thisQty - samePeriodQty);
   const periodRevGap = Number(thisRev - samePeriodRev);
+  const ytdYoyVal = samePeriodRev > 0 ? ((thisRev - samePeriodRev) / samePeriodRev * 100) : (thisRev > 0 ? 100 : 0);
+  const ytdProgressVal = lastRev > 0 ? (thisRev / lastRev * 100) : (thisRev > 0 ? 100 : 0);
+  const ytdYoy = Number(ytdYoyVal.toFixed(1));
+  const ytdProgress = Number(ytdProgressVal.toFixed(1));
   return {
     code: code,
     item,
@@ -1373,6 +1377,8 @@ function getSalesMetricsByCode(code){
     annualRevGap,
     periodQtyGap,
     periodRevGap,
+    ytdYoy,
+    ytdProgress,
     metricQty: ANALYSIS_MODE === 'annual' ? annualQtyGap : periodQtyGap,
     metricRev: ANALYSIS_MODE === 'annual' ? annualRevGap : periodRevGap,
     status: item ? item.status : '—',
@@ -1424,7 +1430,7 @@ function buildSalesDetailBodyHtml(code){
   const item = m.item;
   const titleName = (item && item.name) || sales.name || code;
   const maxVal = Math.max(sales.lastQty || 0, m.samePeriodQty || 0, sales.thisQty || 0, 1);
-  const yoyCol = sales.yoy >= 0 ? '#d32f2f' : '#388e3c';
+  const yoyCol = m.ytdYoy >= 0 ? '#d32f2f' : '#388e3c';
   const qtyMetricText = formatDeltaNumber(m.metricQty);
   const revMetricText = '$' + formatDeltaNumber(m.metricRev);
   const qtyMetricClass = signedClass(m.metricQty);
@@ -1437,11 +1443,12 @@ function buildSalesDetailBodyHtml(code){
       <div class="detail-block-title">銷售進度</div>
       <div class="mc-row"><span>${getAnalysisModeMeta().qtyLabel}</span><span class="mc-row-val ${qtyMetricClass}">${qtyMetricText}</span></div>
       <div class="mc-row"><span>${getAnalysisModeMeta().revLabel}</span><span class="mc-row-val ${revMetricClass}">${revMetricText}</span></div>
-      <div class="mc-row"><span>YoY</span><span class="mc-row-val" style="color:${yoyCol}">${sales.yoy}%</span></div>
+      <div class="mc-row"><span>YTD YoY</span><span class="mc-row-val" style="color:${yoyCol}">${m.ytdYoy}%</span></div>
       <div class="detail-block-title">銷售對照</div>
       <div class="mc-row"><span>今年營收</span><span class="mc-row-val">$${Number(sales.thisRev || 0).toLocaleString()}</span></div>
       <div class="mc-row"><span>去年營收</span><span class="mc-row-val">$${Number(sales.lastRev || 0).toLocaleString()}</span></div>
       <div class="mc-row"><span>營收差額</span><span class="mc-row-val ${signedClass(m.annualRevGap)}">$${formatDeltaNumber(m.annualRevGap)}</span></div>
+      <div class="mc-row"><span>YTD Progress</span><span class="mc-row-val" style="color:#1565c0">${m.ytdProgress}%</span></div>
       <hr style="border-top:1px dashed #eee;margin:10px 0">
       <div class="mc-row"><span>今年銷量</span><span class="mc-row-val">${Number(sales.thisQty || 0).toLocaleString()}</span></div>
       <div class="mc-row"><span>去年銷量</span><span class="mc-row-val">${Number(sales.lastQty || 0).toLocaleString()}</span></div>
@@ -1456,7 +1463,7 @@ function buildSalesDetailBodyHtml(code){
         <div class="comp-row"><span class="comp-label">同期銷量</span><div class="comp-track"><div class="comp-bar" style="width:${(Number(m.samePeriodQty || 0)/maxVal)*100}%;background:#ffb300"></div></div><span class="comp-val">${Number(m.samePeriodQty || 0).toLocaleString()}</span></div>
         <div class="comp-row"><span class="comp-label">今年銷量</span><div class="comp-track"><div class="comp-bar" style="width:${(Number(sales.thisQty || 0)/maxVal)*100}%;background:${Number(sales.thisQty || 0) >= Number(m.samePeriodQty || 0) ? '#d32f2f' : '#0288d1'}"></div></div><span class="comp-val">${Number(sales.thisQty || 0).toLocaleString()}</span></div>
       </div>
-      <div class="comp-hint">資料同期基準比例估算</div>
+      <div class="comp-hint">同期銷量：依資料同期基準比例估算</div>
     </div>
   `;
 }
@@ -2056,7 +2063,7 @@ function switchTab(tab, pushToHistory = true, preserveState = false) {
     if(!preserveState) { AUTO_EXPAND_CODE = null; }
 
     // V94: Set Default Sort per Tab (Auto Sort) - Logic Added
-    if (tab === 'sales') SORT = { key: 'yoy', asc: false }; // YoY descending
+    if (tab === 'sales') SORT = { key: 'yoy', asc: false }; // YTD YoY descending
     else if (tab === 'inventory') SORT = { key: 'stock', asc: false }; // Stock descending
     else if (tab === 'orders') SORT = { key: 'time', asc: false }; // Time descending (newest first)
     else SORT = { key: null, asc: true };
@@ -2916,7 +2923,7 @@ function openSortSheet() {
     optsDiv.innerHTML = "";
     let opts = [];
     if(CURRENT_TAB === 'inventory') { opts = [ {k:'code',l:'料號'}, {k:'name',l:'品名'}, {k:'analysisMetric',l:getAnalysisModeMeta().metricHead}, {k:'stock',l:'庫存'}, {k:'avg',l:'月均銷'}, {k:'supplyMonths',l:'供銷月數'}, {k:'statusVal',l:'狀態(健康度)'} ]; }
-    else if (CURRENT_TAB === 'sales') { opts = [ {k:'code',l:'料號'}, {k:'name',l:'品名'}, {k:'analysisMetric',l:getAnalysisModeMeta().metricHead}, {k:'yoy',l:'YoY'}, {k:'statusVal',l:'狀態'} ]; }
+    else if (CURRENT_TAB === 'sales') { opts = [ {k:'code',l:'料號'}, {k:'name',l:'品名'}, {k:'analysisMetric',l:getAnalysisModeMeta().metricHead}, {k:'yoy',l:'YTD YoY'}, {k:'statusVal',l:'狀態'} ]; }
     else if (CURRENT_TAB === 'orders') { 
         opts = [ 
             {k:'id',l:'單號'}, {k:'time',l:'時間'}, {k:'total',l:'金額'}, 
@@ -2984,6 +2991,10 @@ if(SORT.key) {
                 const metrics = getSalesMetricsByCode(row.code);
                 if(CURRENT_TAB === 'inventory') return metrics.metricQty;
                 return metrics.metricQty;
+            }
+            if(SORT.key === 'yoy') {
+                const metrics = getSalesMetricsByCode(row.code);
+                return metrics.ytdYoy;
             }
             if(SORT.key === 'statusVal') { const inv = getInventoryRowByCode(row.code); return inv ? inv.statusVal : -1; }
             return row[SORT.key];
@@ -3060,7 +3071,7 @@ if(SORT.key) {
         else if (CURRENT_TAB === 'sales') {
             list.forEach(s => {
                 const metric = getSalesMetricsByCode(s.code);
-                const yoyColor = s.yoy >= 0 ? '#d32f2f' : '#388e3c';
+                const yoyColor = metric.ytdYoy >= 0 ? '#d32f2f' : '#388e3c';
                 const metricLabel = getAnalysisModeMeta().metricHead;
                 const metricText = formatDeltaNumber(metric.metricQty);
                 const card = document.createElement('div');
@@ -3082,8 +3093,8 @@ if(SORT.key) {
                             <div style="display:flex;align-items:center;gap:10px;justify-content:flex-end">
                                 <span class="material-icons-round mc-icon-btn hide ${HIDDEN_STOCK.has(s.code) ? 'active' : '' }" onclick="event.stopPropagation(); toggleHidden('${s.code}')" style="font-size:18px" title="隱藏/顯示">visibility_off</span>
                                 <div style="text-align:right">
-                                    <div style="font-size:16px;font-weight:900;color:${yoyColor}">${s.yoy}%</div>
-                                    <div style="font-size:10px;color:#999">YoY</div>
+                                    <div style="font-size:16px;font-weight:900;color:${yoyColor}">${metric.ytdYoy}%</div>
+                                    <div style="font-size:10px;color:#999">YTD YoY</div>
                                 </div>
                             </div>
                         </div>
@@ -3141,11 +3152,11 @@ if(SORT.key) {
         }
         else if (CURRENT_TAB === 'sales') {
             const metricHead = getAnalysisModeMeta().metricHead;
-            html = `<thead><tr>${getSortHeader('code','物料')}${getSortHeader('name','品名')}${getSortHeader('analysisMetric', metricHead)}${getSortHeader('yoy','YoY')}${getSortHeader('statusVal','狀態')}</tr></thead><tbody>`;
+            html = `<thead><tr>${getSortHeader('code','物料')}${getSortHeader('name','品名')}${getSortHeader('analysisMetric', metricHead)}${getSortHeader('yoy','YTD YoY')}${getSortHeader('statusVal','狀態')}</tr></thead><tbody>`;
             list.forEach(s => {
                 const metric = getSalesMetricsByCode(s.code);
                 const metricText = formatDeltaNumber(metric.metricQty);
-                html += `<tr id="row-${s.code}" class="sales-table-row" onclick="openInfoModal('sales', '${String(s.code).replace(/'/g, "\\'")}')"><td style="font-size:14px;color:#888">${s.code} <span class="material-icons-round mc-icon-btn hide ${HIDDEN_STOCK.has(s.code) ? 'active' : '' }" onclick="event.stopPropagation(); toggleHidden('${s.code}')" style="font-size:16px;vertical-align:middle;margin-left:4px" title="隱藏/顯示">visibility_off</span></td><td class="prod-name-cell">${s.name}</td><td><span class="analysis-metric ${signedClass(metric.metricQty)}">${metricText}</span><span class="analysis-metric-sub">${metricHead}</span></td><td class="${s.yoy>=0?'val-up':'val-down'}">${s.yoy}%</td><td>${metric.item ? `<span class="st-badge ${metric.item.statusClass}">${metric.item.status}</span>` : '—'}</td></tr>`;
+                html += `<tr id="row-${s.code}" class="sales-table-row" onclick="openInfoModal('sales', '${String(s.code).replace(/'/g, "\\'")}')"><td style="font-size:14px;color:#888">${s.code} <span class="material-icons-round mc-icon-btn hide ${HIDDEN_STOCK.has(s.code) ? 'active' : '' }" onclick="event.stopPropagation(); toggleHidden('${s.code}')" style="font-size:16px;vertical-align:middle;margin-left:4px" title="隱藏/顯示">visibility_off</span></td><td class="prod-name-cell">${s.name}</td><td><span class="analysis-metric ${signedClass(metric.metricQty)}">${metricText}</span><span class="analysis-metric-sub">${metricHead}</span></td><td class="${metric.ytdYoy>=0?'val-up':'val-down'}">${metric.ytdYoy}%</td><td>${metric.item ? `<span class="st-badge ${metric.item.statusClass}">${metric.item.status}</span>` : '—'}</td></tr>`;
             });
         }
                 else if (CURRENT_TAB === 'orders') {
@@ -4039,7 +4050,7 @@ async function submitAuth(){
   }
 }
 
-// === Non-blocking background auth_verify (V98.13.0) ===
+// === Non-blocking background auth_verify (V98.13.2) ===
 // UI gating uses local exp (zero-lag). We only call auth_verify in the background
 // to retain server-side revoke ability without creating UI "break points".
 const AUTH_BG_VERIFY_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
