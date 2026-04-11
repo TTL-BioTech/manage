@@ -67,8 +67,8 @@ header { height: var(--header-height); background: #fff; border-bottom: 1px soli
 .sales-section-card{}
 .sales-bar-section{}
 .sales-kpi-label{font-size:12px;font-weight:900;color:#78909c;line-height:1.35;}
-.sales-kpi-value{font-size:24px;font-weight:900;line-height:1.1;color:#263238;margin-top:6px;}
-.sales-kpi-value.rev{font-size:22px;}
+.sales-kpi-value{font-size:15px;font-weight:900;line-height:1.15;color:#263238;margin-top:6px;}
+.sales-kpi-value.rev{font-size:15px;}
 .sales-kpi-value.neutral{color:#1565c0;}
 @media (min-width:769px){
   .expand-container{grid-template-columns:350px minmax(500px,2.1fr) minmax(220px,.62fr);gap:14px;}
@@ -78,7 +78,7 @@ header { height: var(--header-height); background: #fff; border-bottom: 1px soli
   .sales-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0 14px;}
   .sales-kpi-box{background:#f8fbfc;border:1px solid #dfe8eb;border-radius:12px;padding:12px 14px;min-width:0;}
   .sales-progress-stack{display:none;}
-  .sales-detail-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(240px,.88fr);gap:12px;align-items:start;margin-top:2px;}
+  .sales-detail-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start;margin-top:2px;}
   .sales-section-card,.sales-bar-section{background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:12px 14px;}
   .sales-section-card .detail-block-title,.sales-bar-section .detail-block-title{margin:0 0 10px;}
   .sales-bar-section{margin-top:12px;}
@@ -1161,7 +1161,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = "98.13.8";
+const APP_VERSION = "98.13.9";
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
