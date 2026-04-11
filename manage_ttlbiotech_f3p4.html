@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>TTL BIO-TECH 戰情中心 V98.13.6</title>
+<title>TTL BIO-TECH 戰情中心 V98.13.7</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00897b">
   <meta name="apple-mobile-web-app-title" content="TTL-Bio Dashboard">
@@ -71,16 +71,18 @@ header { height: var(--header-height); background: #fff; border-bottom: 1px soli
 .sales-kpi-value.rev{font-size:22px;}
 .sales-kpi-value.neutral{color:#1565c0;}
 @media (min-width:769px){
-  .expand-container{grid-template-columns:350px minmax(0,1.45fr) minmax(220px,.62fr);gap:14px;}
-  .r-box{padding:5px 4px;}
-  .r-name{font-size:12px;}
+  .expand-container{grid-template-columns:350px minmax(420px,1.8fr) minmax(280px,.72fr);gap:14px;}
+  .region-grid{grid-template-columns:repeat(auto-fill,minmax(104px,1fr));}
+  .r-box{padding:7px 6px;}
+  .r-name{font-size:13px;}
   .sales-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0 14px;}
   .sales-kpi-box{background:#f8fbfc;border:1px solid #dfe8eb;border-radius:12px;padding:12px 14px;min-width:0;}
   .sales-progress-stack{display:none;}
-  .sales-detail-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(220px,.62fr);gap:12px;align-items:start;margin-top:2px;}
+  .sales-detail-grid{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(240px,.88fr);gap:12px;align-items:start;margin-top:2px;}
   .sales-section-card,.sales-bar-section{background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:12px 14px;}
   .sales-section-card .detail-block-title,.sales-bar-section .detail-block-title{margin:0 0 10px;}
   .sales-bar-section{margin-top:12px;}
+  #infoModal.sales-detail-open .m-card{width:min(960px,92vw);max-width:960px;}
 }
 @media (max-width:768px){
   .header-meta-stack{display:flex;align-items:flex-end;gap:2px;max-width:130px;}
@@ -378,6 +380,9 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 .mc-sales-detail.open { display: block; }
 .mc-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #546e7a; }
 .mc-row-val { font-weight: 700; color: #263238; }
+.sales-progress-stack .mc-row-val.val-up { color: #d32f2f; }
+.sales-progress-stack .mc-row-val.val-down { color: #388e3c; }
+.sales-progress-stack .mc-row-val.neutral { color: #1565c0; }
 
 .mc-order-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; border-top: 1px dashed #eee; padding-top: 8px; }
 .mc-order-total { font-size: 17px; font-weight: 900; color: var(--text-main); }
@@ -1156,7 +1161,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = "98.13.6";
+const APP_VERSION = "98.13.7";
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -3342,13 +3347,16 @@ function openInfoModal(type, code) {
     const sales = getSalesRowByCode(target) || DATA.sales.find(s => (normalizeStr(s.name)===normalizeStr(target))) || { code: target, name: target, lastQty:0, thisQty:0, yoy:0, lastRev:0, thisRev:0 };
     const body = document.getElementById('info-body');
     const title = document.getElementById('info-title');
+    const modal = document.getElementById('infoModal');
 
     if (type === 'sales') {
         title.innerText = "銷售詳情";
         body.innerHTML = buildSalesDetailBodyHtml(target);
+        modal.classList.add('sales-detail-open');
     } else {
         if(!item) return;
         title.innerText = "各地庫存";
+        modal.classList.remove('sales-detail-open');
         const maxR = Math.max(...item.regions.map(r=>r.qty), 1);
         let regionHtml = item.regions.map(r => {
             const ratio = r.qty / maxR;
@@ -3369,7 +3377,9 @@ function openInfoModal(type, code) {
     history.pushState({modal: 'info', expand: code}, null, "");
 }
 function closeInfoModal(goBackHist = true) {
-    document.getElementById('infoModal').classList.remove('open');
+    const modal = document.getElementById('infoModal');
+    modal.classList.remove('open');
+    modal.classList.remove('sales-detail-open');
     if(goBackHist && history.state && history.state.modal) history.back();
 }
 
@@ -3904,6 +3914,7 @@ function showItemStats() {
     }
 
     body.innerHTML = html;
+    document.getElementById('infoModal').classList.remove('sales-detail-open');
     document.getElementById('infoModal').classList.add('open');
     body.scrollTop = 0;
     const infoCard = document.querySelector('#infoModal .m-card');
