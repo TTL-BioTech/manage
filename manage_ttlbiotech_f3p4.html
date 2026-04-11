@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>TTL BIO-TECH 戰情中心 V98.13.7</title>
+<title>TTL BIO-TECH 戰情中心 V98.13.8</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00897b">
   <meta name="apple-mobile-web-app-title" content="TTL-Bio Dashboard">
@@ -71,7 +71,7 @@ header { height: var(--header-height); background: #fff; border-bottom: 1px soli
 .sales-kpi-value.rev{font-size:22px;}
 .sales-kpi-value.neutral{color:#1565c0;}
 @media (min-width:769px){
-  .expand-container{grid-template-columns:350px minmax(420px,1.8fr) minmax(280px,.72fr);gap:14px;}
+  .expand-container{grid-template-columns:350px minmax(500px,2.1fr) minmax(220px,.62fr);gap:14px;}
   .region-grid{grid-template-columns:repeat(auto-fill,minmax(104px,1fr));}
   .r-box{padding:7px 6px;}
   .r-name{font-size:13px;}
@@ -1161,7 +1161,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = "98.13.7";
+const APP_VERSION = "98.13.8";
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -1439,6 +1439,8 @@ function buildSalesDetailBodyHtml(code){
   const revMetricText = '$' + formatDeltaNumber(m.metricRev);
   const qtyMetricClass = signedClass(m.metricQty);
   const revMetricClass = signedClass(m.metricRev);
+  const qtyMetricColor = qtyMetricClass === 'val-up' ? '#d32f2f' : (qtyMetricClass === 'val-down' ? '#388e3c' : '#263238');
+  const revMetricColor = revMetricClass === 'val-up' ? '#d32f2f' : (revMetricClass === 'val-down' ? '#388e3c' : '#263238');
   const meta = getAnalysisModeMeta();
   return `
     <div class="info-section-title">${titleName}</div>
@@ -1447,11 +1449,11 @@ function buildSalesDetailBodyHtml(code){
       <div class="sales-kpi-grid">
         <div class="sales-kpi-box">
           <div class="sales-kpi-label">${meta.qtyLabel}</div>
-          <div class="sales-kpi-value ${qtyMetricClass}">${qtyMetricText}</div>
+          <div class="sales-kpi-value ${qtyMetricClass}" style="color:${qtyMetricColor}">${qtyMetricText}</div>
         </div>
         <div class="sales-kpi-box">
           <div class="sales-kpi-label">${meta.revLabel}</div>
-          <div class="sales-kpi-value rev ${revMetricClass}">${revMetricText}</div>
+          <div class="sales-kpi-value rev ${revMetricClass}" style="color:${revMetricColor}">${revMetricText}</div>
         </div>
         <div class="sales-kpi-box">
           <div class="sales-kpi-label">YTD YoY</div>
@@ -1464,9 +1466,9 @@ function buildSalesDetailBodyHtml(code){
       </div>
       <div class="sales-progress-stack">
         <div class="detail-block-title">銷售進度</div>
-        <div class="mc-row"><span>${meta.qtyLabel}</span><span class="mc-row-val ${qtyMetricClass}">${qtyMetricText}</span></div>
-        <div class="mc-row"><span>${meta.revLabel}</span><span class="mc-row-val ${revMetricClass}">${revMetricText}</span></div>
-        <div class="mc-row"><span>YTD YoY</span><span class="mc-row-val ${m.ytdYoy >= 0 ? 'val-up' : 'val-down'}">${m.ytdYoy}%</span></div>
+        <div class="mc-row"><span>${meta.qtyLabel}</span><span class="mc-row-val ${qtyMetricClass}" style="color:${qtyMetricColor}">${qtyMetricText}</span></div>
+        <div class="mc-row"><span>${meta.revLabel}</span><span class="mc-row-val ${revMetricClass}" style="color:${revMetricColor}">${revMetricText}</span></div>
+        <div class="mc-row"><span>YTD YoY</span><span class="mc-row-val ${m.ytdYoy >= 0 ? 'val-up' : 'val-down'}" style="color:${yoyCol}">${m.ytdYoy}%</span></div>
         <div class="mc-row"><span>YTD Progress</span><span class="mc-row-val neutral" style="color:#1565c0">${m.ytdProgress}%</span></div>
       </div>
       <div class="sales-detail-grid">
