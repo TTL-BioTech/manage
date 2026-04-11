@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>TTL BIO-TECH 戰情中心 V98.13.4</title>
+<title>TTL BIO-TECH 戰情中心 V98.13.5</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00897b">
   <meta name="apple-mobile-web-app-title" content="TTL-Bio Dashboard">
@@ -712,7 +712,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 
 <div id="loading-mask">
   <div class="spinner"></div>
-  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.13.4)...</div>
+  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.13.5)...</div>
 </div>
 
 <div id="restoreWidget" onclick="toggleRestoreList(event)">
@@ -1156,7 +1156,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = "98.13.4";
+const APP_VERSION = "98.13.5";
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -1573,14 +1573,14 @@ async function init() {
                 targetDetail.classList.add('open');
                 const card = document.getElementById('card-' + state.expand);
                 if(card) {
-                    card.scrollIntoView({behavior: "smooth", block: "center"});
+                    scrollElementToTop(card, 6);
                     card.classList.add('highlight-flash');
                 }
             }
         }
 
         if (state.tab) {
-            switchTab(state.tab, false); 
+            switchTab(state.tab, false, true); 
         } else {
             switchTab('dashboard', false);
         }
@@ -1973,7 +1973,15 @@ function processInventory(rows) {
     else if (supplyMonths >= 11) { status = '積壓'; statusClass = 'st-dead'; statusColor = '#4527a0'; statusVal=1; }
     else { status = '充足'; statusClass = 'st-ok'; statusColor = '#388e3c'; statusVal=1; }
     
-    return { code, name, cat, stock, avg, supplyMonths, supplyMonthsDisplay, yearAccumFromSheet, samePeriodGapFromSheet, reserved, available, status, statusClass, statusColor, statusVal, regions: regionHeaders.map(rh => ({ name: rh.name, qty: Number((r[rh.idx] || "0").replace(/,/g, '')) || 0 })).filter(re => re.qty !== 0), info: infoHeaders.map(ih => ({ name: ih.name, val: r[ih.idx] })) };
+    const sortedRegions = regionHeaders
+      .map(rh => ({ name: rh.name, qty: Number((r[rh.idx] || "0").replace(/,/g, '')) || 0 }))
+      .filter(re => re.qty !== 0)
+      .sort((a, b) => {
+        const qtyDiff = (b.qty || 0) - (a.qty || 0);
+        if(qtyDiff !== 0) return qtyDiff;
+        return getShortRegionName(a.name).localeCompare(getShortRegionName(b.name), 'zh-Hant');
+      });
+    return { code, name, cat, stock, avg, supplyMonths, supplyMonthsDisplay, yearAccumFromSheet, samePeriodGapFromSheet, reserved, available, status, statusClass, statusColor, statusVal, regions: sortedRegions, info: infoHeaders.map(ih => ({ name: ih.name, val: r[ih.idx] })) };
   }).filter(x => x);
 }
 
@@ -2208,6 +2216,29 @@ function navigateTo(tab, filter) {
     renderCurrentTable();
 }
 
+
+function getScrollHostForElement(el) {
+    const tableContainer = document.getElementById('tableContainer');
+    if (tableContainer && el && tableContainer.contains(el) && tableContainer.scrollHeight > tableContainer.clientHeight) return tableContainer;
+    return document.scrollingElement || document.documentElement || document.body;
+}
+
+function scrollElementToTop(el, extraOffset = 8) {
+    if (!el) return;
+    const host = getScrollHostForElement(el);
+    const isWindowHost = host === document.scrollingElement || host === document.documentElement || host === document.body;
+    if (isWindowHost) {
+        const header = document.querySelector('header');
+        const headerOffset = header ? header.getBoundingClientRect().height : 0;
+        const top = window.scrollY + el.getBoundingClientRect().top - headerOffset - extraOffset;
+        window.scrollTo({ top: Math.max(top, 0), behavior: 'smooth' });
+        return;
+    }
+    const hostRect = host.getBoundingClientRect();
+    const top = host.scrollTop + (el.getBoundingClientRect().top - hostRect.top) - extraOffset;
+    host.scrollTo({ top: Math.max(top, 0), behavior: 'smooth' });
+}
+
 function navigateToProduct(code, name) {
     PENDING_SEARCH = code; 
     AUTO_EXPAND_CODE = code;
@@ -2225,14 +2256,14 @@ function navigateToProduct(code, name) {
             if(window.innerWidth <= 768) {
                 const card = document.getElementById('card-' + code);
                 if(card) {
-                    card.scrollIntoView({behavior: "smooth", block: "center"});
+                    scrollElementToTop(card, 6);
                     card.classList.add('highlight-flash');
                     const detail = document.getElementById('mc-ex-' + code);
                     if(detail) detail.classList.add('open');
                 }
             } else {
                 const row = document.querySelector('tr.active-row');
-                if(row) row.scrollIntoView({behavior: "smooth", block: "center"});
+                if(row) scrollElementToTop(row, 6);
             }
         }, 300);
     }, 100);
@@ -3331,6 +3362,9 @@ function openInfoModal(type, code) {
     }
 
     document.getElementById('infoModal').classList.add('open');
+    body.scrollTop = 0;
+    const infoCard = document.querySelector('#infoModal .m-card');
+    if(infoCard) infoCard.scrollTop = 0;
     history.pushState({modal: 'info', expand: code}, null, "");
 }
 function closeInfoModal(goBackHist = true) {
@@ -3345,10 +3379,24 @@ function toggleMobileExpandWithHistory(code) {
     } else {
         history.pushState({tab: 'inventory', expand: code}, '', '');
         el.classList.add('open');
+        const card = document.getElementById('card-' + code);
+        if(card) {
+            requestAnimationFrame(() => scrollElementToTop(card, 6));
+            card.classList.add('highlight-flash');
+        }
     }
 }
 
-function toggleRegion(row) { const next = row.nextElementSibling; if(next && next.classList.contains('region-row')) { next.classList.toggle('open'); row.querySelector('.expand-btn').classList.toggle('open'); row.classList.toggle('active-row'); } }
+function toggleRegion(row) {
+    const next = row.nextElementSibling;
+    if(next && next.classList.contains('region-row')) {
+        const willOpen = !next.classList.contains('open');
+        next.classList.toggle('open');
+        row.querySelector('.expand-btn').classList.toggle('open');
+        row.classList.toggle('active-row');
+        if(willOpen) requestAnimationFrame(() => scrollElementToTop(row, 6));
+    }
+}
 
 // --- V91: 完整修復訂單管理邏輯 (源自 V69, 版面維持 V90) ---
 
@@ -3848,6 +3896,9 @@ function showItemStats() {
 
     body.innerHTML = html;
     document.getElementById('infoModal').classList.add('open');
+    body.scrollTop = 0;
+    const infoCard = document.querySelector('#infoModal .m-card');
+    if(infoCard) infoCard.scrollTop = 0;
 }
 
 window.addEventListener('resize', () => { renderCurrentTable(); updateDashboard(); });
@@ -4109,7 +4160,7 @@ async function submitAuth(){
   }
 }
 
-// === Non-blocking background auth_verify (V98.13.4) ===
+// === Non-blocking background auth_verify (V98.13.5) ===
 // UI gating uses local exp (zero-lag). We only call auth_verify in the background
 // to retain server-side revoke ability without creating UI "break points".
 const AUTH_BG_VERIFY_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
