@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>TTL BIO-TECH 戰情中心 V98.13.5</title>
+<title>TTL BIO-TECH 戰情中心 V98.13.6</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00897b">
   <meta name="apple-mobile-web-app-title" content="TTL-Bio Dashboard">
@@ -71,13 +71,13 @@ header { height: var(--header-height); background: #fff; border-bottom: 1px soli
 .sales-kpi-value.rev{font-size:22px;}
 .sales-kpi-value.neutral{color:#1565c0;}
 @media (min-width:769px){
-  .expand-container{grid-template-columns:350px minmax(0,1fr) 1fr;gap:14px;}
+  .expand-container{grid-template-columns:350px minmax(0,1.45fr) minmax(220px,.62fr);gap:14px;}
   .r-box{padding:5px 4px;}
   .r-name{font-size:12px;}
   .sales-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0 14px;}
   .sales-kpi-box{background:#f8fbfc;border:1px solid #dfe8eb;border-radius:12px;padding:12px 14px;min-width:0;}
   .sales-progress-stack{display:none;}
-  .sales-detail-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.85fr);gap:12px;align-items:start;margin-top:2px;}
+  .sales-detail-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(220px,.62fr);gap:12px;align-items:start;margin-top:2px;}
   .sales-section-card,.sales-bar-section{background:#fff;border:1px solid #e0e0e0;border-radius:10px;padding:12px 14px;}
   .sales-section-card .detail-block-title,.sales-bar-section .detail-block-title{margin:0 0 10px;}
   .sales-bar-section{margin-top:12px;}
@@ -153,7 +153,7 @@ header { height: var(--header-height); background: #fff; border-bottom: 1px soli
 
 /* KPI Cards */
 .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; flex-shrink: 0; }
-.kpi-card { background: #fff; padding: 14px 18px; border-radius: 8px; border: 1px solid #e0e0e0; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.kpi-card { background: #fff; padding: 14px 18px; border-radius: 8px; border: 1px solid #e0e0e0; display: flex; align-items: center; justify-content: space-between; cursor: pointer; transition: 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: relative; overflow: hidden; }
 .kpi-card:hover { transform: translateY(-2px); border-color: var(--primary); }
 .kpi-info { display: flex; flex-direction: column; }
 .kpi-label { font-size: 12px; color: var(--text-sub); font-weight: 700; text-transform: uppercase; }
@@ -1095,8 +1095,8 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
   </div>
 </div>
 
-<div id="infoModal" class="modal">
-  <div class="m-card">
+<div id="infoModal" class="modal" onclick="handleInfoModalBackdropClick(event)">
+  <div class="m-card" onclick="event.stopPropagation()">
     <div class="m-head"><span id="info-title">詳細資訊</span><span class="material-icons-round" style="cursor:pointer" onclick="history.back()">close</span></div>
     <div class="m-body" id="info-body"></div>
   </div>
@@ -1156,7 +1156,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = "98.13.5";
+const APP_VERSION = "98.13.6";
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -1461,7 +1461,8 @@ function buildSalesDetailBodyHtml(code){
         <div class="detail-block-title">銷售進度</div>
         <div class="mc-row"><span>${meta.qtyLabel}</span><span class="mc-row-val ${qtyMetricClass}">${qtyMetricText}</span></div>
         <div class="mc-row"><span>${meta.revLabel}</span><span class="mc-row-val ${revMetricClass}">${revMetricText}</span></div>
-        <div class="mc-row"><span>YTD YoY</span><span class="mc-row-val" style="color:${yoyCol}">${m.ytdYoy}%</span></div>
+        <div class="mc-row"><span>YTD YoY</span><span class="mc-row-val ${m.ytdYoy >= 0 ? 'val-up' : 'val-down'}">${m.ytdYoy}%</span></div>
+        <div class="mc-row"><span>YTD Progress</span><span class="mc-row-val neutral" style="color:#1565c0">${m.ytdProgress}%</span></div>
       </div>
       <div class="sales-detail-grid">
         <div class="sales-section-card">
@@ -3370,6 +3371,14 @@ function openInfoModal(type, code) {
 function closeInfoModal(goBackHist = true) {
     document.getElementById('infoModal').classList.remove('open');
     if(goBackHist && history.state && history.state.modal) history.back();
+}
+
+function handleInfoModalBackdropClick(e) {
+    if(window.innerWidth <= 768) return;
+    if(!(e.target && e.target.id === 'infoModal')) return;
+    const title = document.getElementById('info-title');
+    if(title && title.innerText !== '銷售詳情') return;
+    history.back();
 }
 
 function toggleMobileExpandWithHistory(code) {
