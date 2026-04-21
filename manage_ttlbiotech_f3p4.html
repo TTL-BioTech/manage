@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>TTL BIO-TECH 戰情中心 V98.13.11</title>
+<title>TTL BIO-TECH 戰情中心 V98.13.12</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00897b">
   <meta name="apple-mobile-web-app-title" content="TTL-Bio Dashboard">
@@ -119,7 +119,7 @@ header { height: var(--header-height); background: #fff; border-bottom: 1px soli
 .alert-hide:hover{color:#78909c;}
 
 .full-chart-layout{display:flex;gap:14px;align-items:flex-start;}
-.fc-side{width:300px;flex:0 0 300px;background:#fff;border:1px solid #e0e0e0;border-radius:14px;overflow:hidden;position:sticky;top:120px;max-height:calc(100vh - 150px);box-shadow:0 6px 18px rgba(0,0,0,0.06);}
+.fc-side{width:260px;flex:0 0 260px;background:#fff;border:1px solid #e0e0e0;border-radius:14px;overflow:hidden;position:sticky;top:120px;max-height:calc(100vh - 150px);box-shadow:0 6px 18px rgba(0,0,0,0.06);}
 .fc-side-head{padding:10px 12px;background:#fafafa;border-bottom:1px solid #eee;font-weight:900;color:#37474f;display:flex;align-items:center;justify-content:space-between;}
 .fc-side-list{overflow-y:auto;max-height:calc(100vh - 190px);padding:8px;}
 .fc-item{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:10px;border:1px solid #eceff1;border-radius:12px;background:#fff;cursor:pointer;}
@@ -174,7 +174,7 @@ header { height: var(--header-height); background: #fff; border-bottom: 1px soli
 .c-toggle-btn { padding: 4px 8px; font-size: 11px; cursor: pointer; border-radius: 4px; color: #546e7a; font-weight: 700; }
 .c-toggle-btn.active { background: #fff; color: var(--primary); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
 
-.legend-box { display:flex; gap:8px; flex-wrap:wrap; font-size:11px; color:#546e7a; justify-content:flex-end; font-weight: 500; }
+.legend-box { display:flex; gap:8px; flex-wrap:wrap; font-size:13px; color:#546e7a; justify-content:flex-end; font-weight: 600; }
 .l-item { display:flex; align-items:center; gap:3px; white-space: nowrap; }
 .l-dot { width:8px; height:8px; border-radius:2px; }
 
@@ -194,8 +194,8 @@ header { height: var(--header-height); background: #fff; border-bottom: 1px soli
 .fc-controls { display: flex; gap: 10px; }
 .fc-toggle-btn { padding: 6px 12px; border: 1px solid var(--primary); color: var(--primary); border-radius: 20px; font-size: 13px; font-weight: 700; cursor: pointer; }
 .fc-toggle-btn.active { background: var(--primary); color: #fff; }
-.full-chart-legend { padding: 8px 15px; background: #fafafa; border-bottom: 1px solid #eee; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; font-size: 12px; font-weight: 700; color: #546e7a; flex-shrink: 0; }
-.full-chart-body { flex: 1; overflow-y: auto; padding: 20px; }
+.full-chart-legend { padding: 8px 15px; background: #fafafa; border-bottom: 1px solid #eee; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; font-size: 14px; font-weight: 800; color: #546e7a; flex-shrink: 0; }
+.full-chart-body { flex: 1; overflow-y: auto; padding: 12px; }
 .full-chart-container { position: relative; width: 100%; }
 
 /* Restore Widget - Fixed to Left */
@@ -717,7 +717,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 
 <div id="loading-mask">
   <div class="spinner"></div>
-  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.13.11)...</div>
+  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.13.12)...</div>
 </div>
 
 <div id="restoreWidget" onclick="toggleRestoreList(event)">
@@ -1161,7 +1161,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = "98.13.11";
+const APP_VERSION = "98.13.12";
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -1274,6 +1274,7 @@ function setEquals(aSet, arrDefault) {
 
 let FULL_CHART_MODE = 'stock';
 let FULL_CHART_SOURCE = 'stock'; 
+let FULL_CHART_RETURN_CTX = null;
 
 function normalizeStr(s) {
   // Robust normalization: remove whitespace + common punctuation (including fullwidth)
@@ -2207,6 +2208,10 @@ function switchTab(tab, pushToHistory = true, preserveState = false) {
 }
 
 function goBack() {
+    if (CURRENT_TAB === 'inventory' && FULL_CHART_RETURN_CTX) {
+        restoreFullChartContext();
+        return;
+    }
     if (history.state && history.state.tab !== 'dashboard') { history.back(); } else { switchTab('dashboard'); }
 }
 
@@ -2247,7 +2252,58 @@ function scrollElementToTop(el, extraOffset = 8) {
     host.scrollTo({ top: Math.max(top, 0), behavior: 'smooth' });
 }
 
+
+function applyChartAxisRatio(scale, ratio = 0.55) {
+    try {
+        const chartW = scale?.chart?.width || 0;
+        if (!chartW) return;
+        const isMobile = window.innerWidth <= 768;
+        const minW = isMobile ? 150 : 190;
+        const maxW = Math.round(chartW * (isMobile ? 0.62 : 0.58));
+        const target = Math.max(minW, Math.min(Math.round(chartW * ratio), maxW));
+        scale.width = target;
+    } catch(e) {}
+}
+
+function restoreFullChartContext() {
+    const ctx = FULL_CHART_RETURN_CTX;
+    FULL_CHART_RETURN_CTX = null;
+    if (!ctx) { switchTab('dashboard', false); return; }
+
+    switchTab('dashboard', false, true);
+    FULL_CHART_SOURCE = ctx.source || 'stock';
+    FULL_CHART_MODE = ctx.mode || (FULL_CHART_SOURCE === 'stock' ? 'stock' : 'months');
+
+    document.getElementById('view-full-chart').style.display = 'flex';
+    document.getElementById('view-dashboard').style.display = 'none';
+
+    if (FULL_CHART_SOURCE === 'stock') {
+        document.getElementById('fc-btn-stock').innerText = '依月均銷量';
+        document.getElementById('fc-btn-rev').innerText = '依銷售貢獻';
+    } else {
+        document.getElementById('fc-btn-stock').innerText = '依預估月數';
+        document.getElementById('fc-btn-rev').innerText = '依銷售貢獻';
+    }
+
+    switchFullChartMode(FULL_CHART_MODE);
+    requestAnimationFrame(() => {
+        const body = document.querySelector('.full-chart-body');
+        if (body) body.scrollTop = Number(ctx.scrollTop || 0);
+    });
+}
+
 function navigateToProduct(code, name) {
+    const fullChartOpen = document.getElementById('view-full-chart').style.display === 'flex';
+    if (fullChartOpen) {
+        FULL_CHART_RETURN_CTX = {
+            source: FULL_CHART_SOURCE,
+            mode: FULL_CHART_MODE,
+            scrollTop: document.querySelector('.full-chart-body')?.scrollTop || 0
+        };
+        document.getElementById('view-full-chart').style.display = 'none';
+        document.getElementById('view-dashboard').style.display = 'flex';
+    }
+
     PENDING_SEARCH = code; 
     AUTO_EXPAND_CODE = code;
     // V82 Fix: Reset Filter to allow navigation
@@ -2289,6 +2345,7 @@ function clearSearch() {
 
 /* Full Chart Logic */
 function openFullChart(source) {
+    FULL_CHART_RETURN_CTX = null;
     FULL_CHART_SOURCE = source; 
     if(source === 'stock') FULL_CHART_MODE = 'stock';
     else FULL_CHART_MODE = 'months';
@@ -2384,8 +2441,8 @@ function renderFullChart() {
             },
             options: {
                 indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-                layout: { padding: { left: 0, right: 30 } },
-                scales: { x: { min: calcChartXMin(items.flatMap(i => [i.stock, i.avg])), position: 'top' }, y: { ticks: { color: (ctx) => (items[ctx.index] ? items[ctx.index].statusColor : '#263238'), autoSkip: false, font: { size: 14, weight:'bold' } } } },
+                layout: { padding: { left: 0, right: 24 } },
+                scales: { x: { min: calcChartXMin(items.flatMap(i => [i.stock, i.avg])), position: 'top' }, y: { afterFit: (scale) => applyChartAxisRatio(scale, 0.55), ticks: { color: (ctx) => (items[ctx.index] ? items[ctx.index].statusColor : '#263238'), autoSkip: false, font: { size: 14, weight:'bold' } } } },
                 plugins: { 
                     tooltip: { callbacks: { title: (c) => items[c[0].dataIndex].name } } 
                 },
@@ -2407,8 +2464,8 @@ function renderFullChart() {
             },
             options: {
                 indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-                layout: { padding: { left: 10, right: 20 } },
-                scales: { x: { min: calcChartXMin(items.map(i => isRev ? i.tempRev : i.supplyMonths)), position: 'top' }, y: { ticks: { color: (ctx) => (items[ctx.index] ? items[ctx.index].statusColor : '#263238'), autoSkip: false, font: { size: 14, weight:'bold' } } } },
+                layout: { padding: { left: 10, right: 24 } },
+                scales: { x: { min: calcChartXMin(items.map(i => isRev ? i.tempRev : i.supplyMonths)), position: 'top' }, y: { afterFit: (scale) => applyChartAxisRatio(scale, 0.55), ticks: { color: (ctx) => (items[ctx.index] ? items[ctx.index].statusColor : '#263238'), autoSkip: false, font: { size: 14, weight:'bold' } } } },
                 plugins: {
                     tooltip: {
                         callbacks: {
@@ -2493,8 +2550,8 @@ function renderFullChartList(items){
 function handleChartClick(e, els, items) {
     if(els.length > 0) {
         const item = items[els[0].index];
-        if(confirm(`導航至 "${item.name}"？\n(取消則隱藏此項目)`)) {
-            closeFullChart(false);
+        if(confirm(`導航至 "${item.name}"？
+(取消則隱藏此項目)`)) {
             navigateToProduct(item.code, item.name);
         } else {
             toggleHidden(item.code);
@@ -2574,8 +2631,8 @@ function updateDashboard() {
         },
         options: { 
             indexAxis: 'y', responsive:true, maintainAspectRatio:false,
-            layout: { padding: { left: 5, right: 60 } }, 
-            scales: { x: { beginAtZero: true }, y: { ticks: { color: (ctx) => (safetyItems[ctx.index] ? safetyItems[ctx.index].statusColor : '#263238'), font: { weight: 'bold', size: isMobile?11:14, lineHeight: 1.2 }, autoSkip: false } } },
+            layout: { padding: { left: 5, right: 24 } }, 
+            scales: { x: { beginAtZero: true }, y: { afterFit: (scale) => applyChartAxisRatio(scale, 0.55), ticks: { color: (ctx) => (safetyItems[ctx.index] ? safetyItems[ctx.index].statusColor : '#263238'), font: { weight: 'bold', size: isMobile?11:14, lineHeight: 1.2 }, autoSkip: false } } },
             plugins: { 
                 tooltip: { 
                     callbacks: { 
@@ -2642,8 +2699,8 @@ CHARTS.overstock = new Chart(document.getElementById('overstockChart'), {
         },
         options: { 
             responsive:true, maintainAspectRatio:false, indexAxis: 'y',
-            layout: { padding: { left: 5, right: 60 } },
-            scales: { y: { ticks: { color: (ctx) => (overstockItems[ctx.index] ? overstockItems[ctx.index].statusColor : '#263238'), font: { weight: 'bold', size: isMobile?11:14, lineHeight: 1.2 }, autoSkip: false } } },
+            layout: { padding: { left: 5, right: 24 } },
+            scales: { y: { afterFit: (scale) => applyChartAxisRatio(scale, 0.55), ticks: { color: (ctx) => (overstockItems[ctx.index] ? overstockItems[ctx.index].statusColor : '#263238'), font: { weight: 'bold', size: isMobile?11:14, lineHeight: 1.2 }, autoSkip: false } } },
             plugins: { 
                 tooltip: { 
                     callbacks: { 
