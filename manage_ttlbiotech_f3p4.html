@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>TTL BIO-TECH 戰情中心 V98.13.13</title>
+<title>TTL BIO-TECH 戰情中心 V98.13.14</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00897b">
   <meta name="apple-mobile-web-app-title" content="TTL-Bio Dashboard">
@@ -717,7 +717,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 
 <div id="loading-mask">
   <div class="spinner"></div>
-  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.13.13)...</div>
+  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.13.14)...</div>
 </div>
 
 <div id="restoreWidget" onclick="toggleRestoreList(event)">
@@ -1161,7 +1161,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = '98.13.13';
+const APP_VERSION = '98.13.14';
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -2266,6 +2266,87 @@ function applyChartAxisRatio(scale, ratio = 0.55) {
     } catch(e) {}
 }
 
+
+const __labelMeasureCanvas = document.createElement('canvas');
+function measureTextWidth(text, font){
+    const ctx = __labelMeasureCanvas.getContext('2d');
+    ctx.font = font;
+    return ctx.measureText(String(text || '')).width;
+}
+function tokenizeLabelForWrap(label){
+    return String(label || '').match(/[A-Za-z0-9]+(?:[._\/-][A-Za-z0-9]+)*|[一-鿿]|\S/g) || [];
+}
+function wrapLabelByWidth(label, maxWidth, font, maxLines = 2){
+    const raw = String(label || '').trim();
+    if(!raw) return '';
+    const safeMaxWidth = Math.max(24, Number(maxWidth || 0));
+    if(measureTextWidth(raw, font) <= safeMaxWidth) return raw;
+
+    const tokens = tokenizeLabelForWrap(raw);
+    const lines = [];
+    let line = '';
+
+    const fitWithEllipsis = (txt) => {
+        let out = '';
+        for (const ch of Array.from(String(txt || ''))) {
+            const next = out + ch;
+            if (measureTextWidth(next + '…', font) <= safeMaxWidth) out = next;
+            else break;
+        }
+        return (out || '').replace(/\s+$/,'') + '…';
+    };
+
+    for (const token of tokens) {
+        const candidate = line + token;
+        if (!line || measureTextWidth(candidate, font) <= safeMaxWidth) {
+            line = candidate;
+            continue;
+        }
+
+        lines.push(line.replace(/\s+$/,''));
+        if (lines.length >= maxLines) return lines;
+
+        if (measureTextWidth(token, font) <= safeMaxWidth) {
+            line = token.trimStart();
+            continue;
+        }
+
+        let seg = '';
+        for (const ch of Array.from(token)) {
+            const next = seg + ch;
+            if (measureTextWidth(next, font) <= safeMaxWidth) {
+                seg = next;
+                continue;
+            }
+            if (lines.length >= maxLines - 1) {
+                lines.push(fitWithEllipsis(seg + ch + token.slice(seg.length + 1)));
+                return lines.filter(Boolean);
+            }
+            if (seg) lines.push(seg);
+            seg = ch;
+            if (lines.length >= maxLines - 1) {
+                lines.push(fitWithEllipsis(seg + token.slice(seg.length)));
+                return lines.filter(Boolean);
+            }
+        }
+        line = seg;
+    }
+
+    if (line) lines.push(line.replace(/\s+$/,''));
+    if (lines.length <= maxLines) return lines.length === 1 ? lines[0] : lines;
+
+    const kept = lines.slice(0, maxLines);
+    kept[maxLines - 1] = fitWithEllipsis(kept[maxLines - 1]);
+    return kept;
+}
+
+function getYAxisWrappedLabel(scale, label, fontSize, weight='bold', maxLines=2){
+    const family = 'Noto Sans TC, system-ui, sans-serif';
+    const font = `${weight === 'bold' || weight === 700 ? '700' : weight} ${fontSize}px ${family}`;
+    const available = Math.max(32, (scale?.width || 0) - 10);
+    return wrapLabelByWidth(label, available, font, maxLines);
+}
+
 function restoreFullChartContext() {
     const ctx = FULL_CHART_RETURN_CTX;
     FULL_CHART_RETURN_CTX = null;
@@ -2418,23 +2499,13 @@ function renderFullChart() {
     
     const ctx = document.getElementById('fullChart').getContext('2d');
     
-    // V94: Smart Label Wrapping (14 chars)
-    const formatLabel = (label) => {
-        if(window.innerWidth > 768) return label; // Desktop: No wrap
-        const chunk = 14; 
-        const res = [];
-        for(let i=0; i<label.length; i+=chunk) {
-            res.push(label.substring(i, i+chunk));
-        }
-        return res;
-    };
     let chartConfig = {};
     
     if (FULL_CHART_SOURCE === 'stock') {
         chartConfig = {
             type: 'bar',
             data: {
-                labels: items.map(i => formatLabel(i.name)),
+                labels: items.map(i => i.name),
                 datasets: [
                     { label: '現有庫存 (M)', data: items.map(i => i.stock), backgroundColor: Array(items.length).fill('#1e88e5'), order: 2, barPercentage: 0.6 },
                     { label: '月均銷量', data: items.map(i => i.avg), backgroundColor: Array(items.length).fill('#90a4ae'), barPercentage: 0.4, order: 1 }
@@ -2443,7 +2514,7 @@ function renderFullChart() {
             options: {
                 indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                 layout: { padding: { left: 0, right: 24 } },
-                scales: { x: { min: calcChartXMin(items.flatMap(i => [i.stock, i.avg])), position: 'top' }, y: { afterFit: (scale) => applyChartAxisRatio(scale, 0.58), ticks: { color: (ctx) => (items[ctx.index] ? items[ctx.index].statusColor : '#263238'), autoSkip: false, font: { size: 14, weight:'bold' } } } },
+                scales: { x: { min: calcChartXMin(items.flatMap(i => [i.stock, i.avg])), position: 'top' }, y: { afterFit: (scale) => applyChartAxisRatio(scale, 0.58), ticks: { color: (ctx) => (items[ctx.index] ? items[ctx.index].statusColor : '#263238'), autoSkip: false, font: { size: 14, weight:'bold', lineHeight: 1.38 }, callback: function(value, index){ return getYAxisWrappedLabel(this, items[index]?.name || this.getLabelForValue(value), 14, 'bold', window.innerWidth <= 768 ? 2 : 2); } } } },
                 plugins: { 
                     tooltip: { callbacks: { title: (c) => items[c[0].dataIndex].name } } 
                 },
@@ -2455,7 +2526,7 @@ function renderFullChart() {
         chartConfig = {
             type: 'bar',
             data: {
-                labels: items.map(i => formatLabel(i.name)),
+                labels: items.map(i => i.name),
                 datasets: [{
                     label: isRev ? '今年營收 ($)' : '預估可供銷月數',
                     data: items.map(i => isRev ? i.tempRev : i.supplyMonths),
@@ -2466,7 +2537,7 @@ function renderFullChart() {
             options: {
                 indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                 layout: { padding: { left: 10, right: 24 } },
-                scales: { x: { min: calcChartXMin(items.map(i => isRev ? i.tempRev : i.supplyMonths)), position: 'top' }, y: { afterFit: (scale) => applyChartAxisRatio(scale, 0.58), ticks: { color: (ctx) => (items[ctx.index] ? items[ctx.index].statusColor : '#263238'), autoSkip: false, font: { size: 14, weight:'bold' } } } },
+                scales: { x: { min: calcChartXMin(items.map(i => isRev ? i.tempRev : i.supplyMonths)), position: 'top' }, y: { afterFit: (scale) => applyChartAxisRatio(scale, 0.58), ticks: { color: (ctx) => (items[ctx.index] ? items[ctx.index].statusColor : '#263238'), autoSkip: false, font: { size: 14, weight:'bold', lineHeight: 1.38 }, callback: function(value, index){ return getYAxisWrappedLabel(this, items[index]?.name || this.getLabelForValue(value), 14, 'bold', window.innerWidth <= 768 ? 2 : 2); } } } },
                 plugins: {
                     tooltip: {
                         callbacks: {
@@ -2591,16 +2662,6 @@ function updateDashboard() {
     if(CHARTS.stock) CHARTS.stock.destroy();
     if(CHARTS.overstock) CHARTS.overstock.destroy();
 
-    // V94: Smart Label Wrapping for Dashboard (14 chars)
-    const formatLabel = (label) => {
-        if(!isMobile) return label.length > 12 ? label.substring(0,12)+'...' : label;
-        const chunk = 14; // Reduced to 14
-        const res = [];
-        for(let i=0; i<label.length; i+=chunk) {
-            res.push(label.substring(i, i+chunk));
-        }
-        return res;
-    };
 
     DATA.inventory.forEach(i => {
         const s = getSalesRowByCode(i.code) || { thisRev: 0 };
@@ -2624,7 +2685,7 @@ function updateDashboard() {
     CHARTS.stock = new Chart(document.getElementById('stockChart'), {
         type: 'bar',
         data: {
-            labels: safetyItems.map(i => formatLabel(i.name)),
+            labels: safetyItems.map(i => i.name),
             datasets: [
                 { label: '現有庫存 (M)', data: safetyItems.map(i => i.stock), backgroundColor: Array(safetyItems.length).fill(STOCK_UNI_COLOR), order: 2, barPercentage: 0.6 },
                 { label: '月均銷量', data: safetyItems.map(i => i.avg), backgroundColor: Array(safetyItems.length).fill(AVG_GRAY_COLOR), barPercentage: 0.4, order: 1 }
@@ -2633,7 +2694,7 @@ function updateDashboard() {
         options: { 
             indexAxis: 'y', responsive:true, maintainAspectRatio:false,
             layout: { padding: { left: 5, right: 24 } }, 
-            scales: { x: { beginAtZero: true }, y: { afterFit: (scale) => applyChartAxisRatio(scale, 0.58), ticks: { color: (ctx) => (safetyItems[ctx.index] ? safetyItems[ctx.index].statusColor : '#263238'), font: { weight: 'bold', size: isMobile?11:14, lineHeight: 1.38 }, autoSkip: false } } },
+            scales: { x: { beginAtZero: true }, y: { afterFit: (scale) => applyChartAxisRatio(scale, 0.58), ticks: { color: (ctx) => (safetyItems[ctx.index] ? safetyItems[ctx.index].statusColor : '#263238'), font: { weight: 'bold', size: isMobile?11:14, lineHeight: 1.38 }, autoSkip: false, callback: function(value, index){ return getYAxisWrappedLabel(this, safetyItems[index]?.name || this.getLabelForValue(value), isMobile?11:14, 'bold', 2); } } } },
             plugins: { 
                 tooltip: { 
                     callbacks: { 
@@ -2691,7 +2752,7 @@ CHARTS.overstock = new Chart(document.getElementById('overstockChart'), {
         plugins: [osValueLabelPlugin],
         type: 'bar',
         data: {
-            labels: overstockItems.map(i => formatLabel(i.name)),
+            labels: overstockItems.map(i => i.name),
             datasets: [{
                 label: isRev ? '今年營收 ($)' : '預估可供銷月數',
                 data: overstockItems.map(i => isRev ? i.tempRev : i.supplyMonths),
@@ -2701,7 +2762,7 @@ CHARTS.overstock = new Chart(document.getElementById('overstockChart'), {
         options: { 
             responsive:true, maintainAspectRatio:false, indexAxis: 'y',
             layout: { padding: { left: 5, right: 24 } },
-            scales: { y: { afterFit: (scale) => applyChartAxisRatio(scale, 0.58), ticks: { color: (ctx) => (overstockItems[ctx.index] ? overstockItems[ctx.index].statusColor : '#263238'), font: { weight: 'bold', size: isMobile?11:14, lineHeight: 1.38 }, autoSkip: false } } },
+            scales: { y: { afterFit: (scale) => applyChartAxisRatio(scale, 0.58), ticks: { color: (ctx) => (overstockItems[ctx.index] ? overstockItems[ctx.index].statusColor : '#263238'), font: { weight: 'bold', size: isMobile?11:14, lineHeight: 1.38 }, autoSkip: false, callback: function(value, index){ return getYAxisWrappedLabel(this, overstockItems[index]?.name || this.getLabelForValue(value), isMobile?11:14, 'bold', 2); } } } },
             plugins: { 
                 tooltip: { 
                     callbacks: { 
