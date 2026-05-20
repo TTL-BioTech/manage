@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>TTL BIO-TECH 戰情中心 V98.13.14</title>
+<title>TTL BIO-TECH 戰情中心 V98.13.15</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00897b">
   <meta name="apple-mobile-web-app-title" content="TTL-Bio Dashboard">
@@ -711,13 +711,41 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+
+/* --- Orders payment / pickup workflow --- */
+.order-tools{display:flex;gap:6px;align-items:center;}
+.order-tool-btn{border:1px solid #cfd8dc;background:#fff;color:#00695c;border-radius:10px;padding:7px 9px;cursor:pointer;display:flex;align-items:center;gap:4px;font-weight:900;font-size:12px;}
+.order-tool-btn .material-icons-round{font-size:18px;}
+.order-paid-row{background:#ecfdf5!important;}
+.order-picked-row{box-shadow:inset 4px 0 0 #3b82f6;}
+.order-paid-card{background:#ecfdf5!important;border-color:#a7f3d0!important;}
+.order-status-badges{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.order-badge{display:inline-flex;align-items:center;gap:3px;padding:3px 7px;border-radius:999px;font-size:12px;font-weight:900;white-space:nowrap;}
+.order-badge.pay-paid{background:#d1fae5;color:#047857;}
+.order-badge.pay-unpaid{background:#fff7ed;color:#c2410c;}
+.order-badge.pick-picked{background:#dbeafe;color:#1d4ed8;}
+.order-badge.pick-unpicked{background:#f1f5f9;color:#475569;}
+.workflow-panel{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px;}
+.workflow-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.workflow-label{font-size:12px;color:#607d8b;font-weight:900;min-width:68px;}
+.workflow-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
+.workflow-pill{border:1px solid #cfd8dc;background:#fff;color:#455a64;border-radius:999px;padding:6px 10px;font-weight:900;cursor:pointer;font-size:12px;}
+.workflow-pill.active.pay{background:#d1fae5;color:#047857;border-color:#6ee7b7;}
+.workflow-pill.active.unpay{background:#fff7ed;color:#c2410c;border-color:#fed7aa;}
+.workflow-pill.active.picked{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd;}
+.workflow-pill.active.unpicked{background:#f1f5f9;color:#475569;border-color:#cbd5e1;}
+.pickup-code-chip{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-weight:900;letter-spacing:.5px;background:#fff;border:1px dashed #80cbc4;color:#00695c;border-radius:8px;padding:5px 8px;}
+.scan-video{width:100%;max-height:52vh;background:#000;border-radius:12px;object-fit:cover;}
+.scan-hint{font-size:12px;color:#607d8b;line-height:1.5;margin-top:8px;}
+
 </style>
 </head>
 <body>
 
 <div id="loading-mask">
   <div class="spinner"></div>
-  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.13.14)...</div>
+  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.13.15)...</div>
 </div>
 
 <div id="restoreWidget" onclick="toggleRestoreList(event)">
@@ -954,6 +982,10 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
             <span id="searchClear" class="material-icons-round search-clear" onclick="clearSearch()">close</span>
           </div>
           <div class="panel-actions">
+            <div id="orderTools" class="order-tools" style="display:none;">
+              <button class="order-tool-btn" onclick="openPickupScanModal()" title="掃描取貨碼"><span class="material-icons-round">qr_code_scanner</span><span class="hide-mobile-label">掃描</span></button>
+              <button class="order-tool-btn" onclick="openManualPickupLookup()" title="手動輸入取貨碼"><span class="material-icons-round">pin</span></button>
+            </div>
             <div id="filter-btn" class="filter-btn" onclick="openFilterSheet()"><span class="material-icons-round" style="font-size:20px">filter_alt</span></div>
             <div id="ordersAutoRefresh" class="oar" style="display:none;">
               <button id="oarToggle" class="oar-btn" onclick="toggleOrdersAutoRefresh()" title="訂單自動更新" aria-label="訂單自動更新">
@@ -1063,6 +1095,26 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
     <div class="m-head"><span id="m-title">訂單詳情</span><span class="material-icons-round" style="cursor:pointer" onclick="history.back()">close</span></div>
     <div class="m-body">
       <input type="hidden" id="e-oid">
+      <div class="workflow-panel" id="e-workflow-panel">
+        <div class="workflow-row">
+          <div class="workflow-label">付款</div>
+          <div class="workflow-actions">
+            <button type="button" class="workflow-pill" id="e-pay-unpaid" onclick="updateOrderWorkflowStatus('payment','unpaid')">未付</button>
+            <button type="button" class="workflow-pill" id="e-pay-paid" onclick="updateOrderWorkflowStatus('payment','paid')">已付</button>
+          </div>
+        </div>
+        <div class="workflow-row">
+          <div class="workflow-label">領貨</div>
+          <div class="workflow-actions">
+            <button type="button" class="workflow-pill" id="e-pick-unpicked" onclick="updateOrderWorkflowStatus('pickup','unpicked')">未領</button>
+            <button type="button" class="workflow-pill" id="e-pick-picked" onclick="updateOrderWorkflowStatus('pickup','picked')">已領</button>
+          </div>
+        </div>
+        <div class="workflow-row">
+          <div class="workflow-label">取貨碼</div>
+          <div class="workflow-actions"><span class="pickup-code-chip" id="e-pickup-code">—</span></div>
+        </div>
+      </div>
       <div class="m-form-row"><label class="m-label">姓名</label><input class="m-input" id="e-name" disabled></div>
       <div class="m-form-row"><label class="m-label">部門</label><input class="m-input" id="e-dept" disabled></div>
       <div class="m-form-row"><label class="m-label">取貨</label><input class="m-input" id="e-pickup" disabled></div>
@@ -1080,6 +1132,20 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
     <div class="m-foot" id="m-foot-edit" style="display:none">
       <button class="m-btn warn" style="margin-right:auto" onclick="deleteOrderAction()">刪除</button>
       <button class="m-btn save" onclick="saveOrderAction()">儲存變更</button>
+    </div>
+  </div>
+</div>
+
+<div id="pickupScanModal" class="modal">
+  <div class="m-card" style="max-width:460px">
+    <div class="m-head"><span>掃描取貨碼</span><span class="material-icons-round" style="cursor:pointer" onclick="closePickupScanModal()">close</span></div>
+    <div class="m-body">
+      <video id="pickupScannerVideo" class="scan-video" muted playsinline></video>
+      <div id="pickupScanStatus" class="scan-hint">請允許相機權限，並將同仁手機上的 QR Code 置於畫面中央。</div>
+      <div style="display:flex;gap:10px;margin-top:12px;">
+        <button class="m-btn normal" onclick="openManualPickupLookup()">手動輸入</button>
+        <button class="m-btn save" onclick="restartPickupScanner()">重新掃描</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1161,7 +1227,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = '98.13.14';
+const APP_VERSION = '98.13.15';
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -1230,6 +1296,8 @@ let SELECTED_STATUSES = new Set(ALL_STATUSES);
 // Orders Filter (Dept / Pickup)
 let SELECTED_ORDER_PICKUPS = new Set(JSON.parse(localStorage.getItem('admin_order_pickups') || '[]'));
 let SELECTED_ORDER_DEPTS = new Set(JSON.parse(localStorage.getItem('admin_order_depts') || '[]'));
+let SELECTED_ORDER_PAYMENT_STATUSES = new Set(JSON.parse(localStorage.getItem('admin_order_payment_statuses') || '[]'));
+let SELECTED_ORDER_PICKUP_STATUSES = new Set(JSON.parse(localStorage.getItem('admin_order_pickup_statuses') || '[]'));
 // Backward-compat: migrate old combined filter set if present
 try {
   const legacy = JSON.parse(localStorage.getItem('admin_order_filters') || '[]');
@@ -1892,51 +1960,53 @@ function processProducts(rows) {
 // 請替換 manage_ttlbiotech_f3p4.html 中的 processOrders 函式
 function processOrders(rows) {
   DATA.soldMap = {};
-  // GAS V3.7+ 結構: 
-  // Col 0:ID, 1:Time, 2:Name, 3:Dept, 4:PayMethod, 5:Note, 6:Base, 7:Disc, 8:Total, 9:DiscNote, 10:Pickup, 11:JSON
-  DATA.orders = rows.slice(1).map(r => {
-    const safe = (i) => (r[i] !== undefined && r[i] !== null) ? String(r[i]) : "";
+  if(!rows || rows.length === 0) { DATA.orders = []; return; }
+  const headers = (rows[0] || []).map(h => String(h || '').trim());
+  const idxOf = (names, fallback) => {
+    for(const name of names) {
+      const idx = headers.findIndex(h => h.toLowerCase() === String(name).toLowerCase());
+      if(idx >= 0) return idx;
+    }
+    return fallback;
+  };
+  const IDX = {
+    id: idxOf(['Order ID','order_id'],0), time: idxOf(['Timestamp','Time'],1), name: idxOf(['Name'],2), dept: idxOf(['Dept','Department'],3),
+    note: idxOf(['Note'],5), total: idxOf(['Total Pay'],8), pickup: idxOf(['Pick up','Pickup'],10), raw: idxOf(['Raw JSON'],11),
+    receiptEmail: idxOf(['Receipt Email'],12), pickupToken: idxOf(['Pickup Token'],13), pickupCode: idxOf(['Pickup Code'],14), emailStatus: idxOf(['Email Status'],15),
+    paymentStatus: idxOf(['Payment Status'],17), paidAt: idxOf(['Paid At'],18), pickupStatus: idxOf(['Pickup Status'],20), pickedAt: idxOf(['Picked At'],21)
+  };
+  DATA.orders = rows.slice(1).filter(r => String(r[IDX.id] || '').trim()).map(r => {
+    const safe = (i) => (i >= 0 && r[i] !== undefined && r[i] !== null) ? String(r[i]) : "";
     let rawJson = null;
-    
-    // [Fix] 嘗試讀取 JSON，包含防呆
-    try { 
-        if(safe(11) && safe(11).startsWith('{')) {
-            rawJson = JSON.parse(safe(11)); 
-        } else if (safe(10) && safe(10).startsWith('{')) {
-            // 向下相容舊資料
-            rawJson = JSON.parse(safe(10));
-        }
-    } catch(e) { console.warn("JSON Parse Error", r[0]); }
-    
-    // 建立銷量 Map
+    try {
+        if(safe(IDX.raw) && safe(IDX.raw).startsWith('{')) rawJson = JSON.parse(safe(IDX.raw));
+        else if (safe(10) && safe(10).startsWith('{')) rawJson = JSON.parse(safe(10));
+    } catch(e) { console.warn("JSON Parse Error", r[IDX.id]); }
     if (rawJson) {
         if(rawJson.items) rawJson.items.forEach(it => { const code = it.product_code || it.product_name; if(code) DATA.soldMap[code] = (DATA.soldMap[code] || 0) + (it.qty || 0); });
-        // 贈品統計邏輯，移除 [贈] 前綴
-        if(rawJson.gifts) rawJson.gifts.forEach(g => { 
+        if(rawJson.gifts) rawJson.gifts.forEach(g => {
             let code = g.product_code || g.product_name;
-            code = code.replace(/^\[贈品\]\s*/, '').replace(/^\[Gift\]\s*/i, '');
-            if(code) DATA.soldMap[code] = (DATA.soldMap[code] || 0) + (g.qty || 0); 
+            code = String(code || '').replace(/^\[贈品\]\s*/, '').replace(/^\[Gift\]\s*/i, '');
+            if(code) DATA.soldMap[code] = (DATA.soldMap[code] || 0) + (g.qty || 0);
         });
     }
-    
-    // [Fix] 讀取 Pickup
-    let pickup = safe(10); 
-    if(pickup.includes('{') || !pickup) pickup = "自取"; // 防呆
-    
-    return { 
-        id: safe(0), 
-        time: safe(1), 
-        name: safe(2), 
-        dept: safe(3), 
-        note: safe(5), 
-        total: Number(safe(8).toString().replace(/,/g, '')) || 0, 
-        pickup: pickup,
-        raw: rawJson 
+    let pickup = safe(IDX.pickup);
+    if(pickup.includes('{') || !pickup) pickup = "自取";
+    const paymentStatus = normalizePaymentStatus(safe(IDX.paymentStatus) || (rawJson && rawJson.payment_status) || 'unpaid');
+    const pickupStatus = normalizePickupStatus(safe(IDX.pickupStatus) || (rawJson && rawJson.pickup_status) || 'unpicked');
+    const pickupToken = safe(IDX.pickupToken) || (rawJson && rawJson.pickup_token) || '';
+    const pickupCode = safe(IDX.pickupCode) || (rawJson && rawJson.pickup_code) || '';
+    return {
+        id: safe(IDX.id), time: safe(IDX.time), name: safe(IDX.name), dept: safe(IDX.dept), note: safe(IDX.note),
+        total: Number(safe(IDX.total).toString().replace(/,/g, '')) || 0, pickup,
+        receiptEmail: safe(IDX.receiptEmail) || (rawJson && rawJson.receipt_email) || '', pickupToken, pickupCode,
+        emailStatus: safe(IDX.emailStatus) || (rawJson && rawJson.email_status) || '', paymentStatus,
+        paidAt: safe(IDX.paidAt) || (rawJson && rawJson.paid_at) || '', pickupStatus,
+        pickedAt: safe(IDX.pickedAt) || (rawJson && rawJson.picked_at) || '', raw: rawJson
     };
-  }).filter(o => o.id); // 過濾掉沒有 ID 的空行
+  });
 }
 
-// V82: Strict V69 Core Logic
 function processInventory(rows) {
   if(rows.length < 2) return;
   const header = (rows[0]||[]).map(h => String(h || "").replace(/[\r\n]+/g, '').trim());
@@ -2933,6 +3003,23 @@ function getSortHeader(key, label) {
     return `<th onclick="sortData('${key}')">${label} ${icon}</th>`;
 }
 
+
+function normalizePaymentStatus(v){ return String(v || '').toLowerCase() === 'paid' ? 'paid' : 'unpaid'; }
+function normalizePickupStatus(v){ return String(v || '').toLowerCase() === 'picked' ? 'picked' : 'unpicked'; }
+function paymentBadgeHtml(v){ const st = normalizePaymentStatus(v); return `<span class="order-badge pay-${st}">${st==='paid'?'已付':'未付'}</span>`; }
+function pickupBadgeHtml(v){ const st = normalizePickupStatus(v); return `<span class="order-badge pick-${st}">${st==='picked'?'已領':'未領'}</span>`; }
+function orderRowClass(o){ return `${normalizePaymentStatus(o.paymentStatus)==='paid'?'order-paid-row':''} ${normalizePickupStatus(o.pickupStatus)==='picked'?'order-picked-row':''}`.trim(); }
+function getFilteredOrders(qRaw){
+  const q = String(qRaw || '').toLowerCase().trim();
+  let list = DATA.orders.filter(o => o.id.toLowerCase().includes(q) || String(o.name||'').includes(q) || String(o.pickupCode||'').toLowerCase().includes(q));
+  if (q.length === 8 && !isNaN(q)) list = DATA.orders.filter(o => o.id.includes(q) || o.time.replace(/\D/g,'').startsWith(q) || String(o.pickupCode||'').toLowerCase() === q);
+  if (SELECTED_ORDER_PICKUPS && SELECTED_ORDER_PICKUPS.size > 0) list = list.filter(o => SELECTED_ORDER_PICKUPS.has(String(o.pickup || '').trim()));
+  if (SELECTED_ORDER_DEPTS && SELECTED_ORDER_DEPTS.size > 0) list = list.filter(o => SELECTED_ORDER_DEPTS.has(String(o.dept || '').trim()));
+  if (SELECTED_ORDER_PAYMENT_STATUSES && SELECTED_ORDER_PAYMENT_STATUSES.size > 0) list = list.filter(o => SELECTED_ORDER_PAYMENT_STATUSES.has(normalizePaymentStatus(o.paymentStatus)));
+  if (SELECTED_ORDER_PICKUP_STATUSES && SELECTED_ORDER_PICKUP_STATUSES.size > 0) list = list.filter(o => SELECTED_ORDER_PICKUP_STATUSES.has(normalizePickupStatus(o.pickupStatus)));
+  return list;
+}
+
 function openFilterSheet() {
     const optsDiv = document.getElementById('filterOptions');
     const visDiv = document.getElementById('visibilityOptions');
@@ -3007,41 +3094,37 @@ function openFilterSheet() {
         });
     }
     else if(CURRENT_TAB === 'orders') {
-        // Orders: keep existing dept/pickup filter (no visibility)
         visSection.style.display = 'none';
-
-        statusTitle.innerText = '篩選 (可複選)';
+        statusTitle.innerText = '訂單篩選 (可複選)';
         statusAll.style.display = 'none';
-
         const depts = [...new Set(DATA.orders.map(o => String(o.dept||'').trim()))].filter(Boolean).sort();
         const pickups = ["自取", "宅配"];
-        const options = ["(全選)", ...pickups, "---", ...depts];
-
-        options.forEach(opt => {
-            if(opt === "---") {
-                optsDiv.appendChild(document.createElement("hr"));
-                return;
+        const rows = [
+          {kind:'all', label:'全選所有項目'}, {kind:'sep'},
+          {kind:'pay', value:'unpaid', label:'付款：未付'}, {kind:'pay', value:'paid', label:'付款：已付'}, {kind:'sep'},
+          {kind:'pickupStatus', value:'unpicked', label:'領貨：未領'}, {kind:'pickupStatus', value:'picked', label:'領貨：已領'}, {kind:'sep'},
+          ...pickups.map(x => ({kind:'pickup', value:x, label:'取貨：' + x})), {kind:'sep'},
+          ...depts.map(x => ({kind:'dept', value:x, label:x}))
+        ];
+        const defaultAll = { pay: SELECTED_ORDER_PAYMENT_STATUSES.size===0, pickupStatus: SELECTED_ORDER_PICKUP_STATUSES.size===0, pickup: SELECTED_ORDER_PICKUPS.size===0, dept: SELECTED_ORDER_DEPTS.size===0 };
+        rows.forEach(row => {
+            if(row.kind === 'sep') { optsDiv.appendChild(document.createElement("hr")); return; }
+            const isAll = row.kind === 'all';
+            const value = isAll ? '' : `${row.kind}:${row.value}`;
+            let checked = false;
+            if(!isAll) {
+              if(row.kind === 'pay') checked = defaultAll.pay ? true : SELECTED_ORDER_PAYMENT_STATUSES.has(row.value);
+              if(row.kind === 'pickupStatus') checked = defaultAll.pickupStatus ? true : SELECTED_ORDER_PICKUP_STATUSES.has(row.value);
+              if(row.kind === 'pickup') checked = defaultAll.pickup ? true : SELECTED_ORDER_PICKUPS.has(row.value);
+              if(row.kind === 'dept') checked = defaultAll.dept ? true : SELECTED_ORDER_DEPTS.has(row.value);
             }
-            const isAll = opt === "(全選)";
-            const pickupDefaultAll = (SELECTED_ORDER_PICKUPS.size === 0);
-            const deptDefaultAll = (SELECTED_ORDER_DEPTS.size === 0);
-            const isPickup = pickups.includes(opt);
-            const isChecked = isAll ? false : (isPickup ? (pickupDefaultAll ? true : SELECTED_ORDER_PICKUPS.has(opt)) : (deptDefaultAll ? true : SELECTED_ORDER_DEPTS.has(opt)));
-
             const div = document.createElement('div');
             div.className = "filter-row";
             if(isAll) div.style.color = "var(--primary)";
-
-            div.onclick = function() {
-                if(isAll) { toggleAllFilters(true,'status'); return; }
-                const chk = this.querySelector('input');
-                chk.checked = !chk.checked;
-            };
-
+            div.onclick = function() { if(isAll) { toggleAllFilters(true,'status'); return; } const chk = this.querySelector('input'); chk.checked = !chk.checked; };
             div.innerHTML = isAll
                 ? `<span class="material-icons-round" style="margin-right:12px">done_all</span><span class="filter-label">全選所有項目</span>`
-                : `<input type="checkbox" class="filter-chk" value="${opt}" ${isChecked ? 'checked' : ''} onclick="event.stopPropagation()">
-                   <span class="filter-label">${opt}</span>`;
+                : `<input type="checkbox" class="filter-chk" value="${value}" ${checked ? 'checked' : ''} onclick="event.stopPropagation()"><span class="filter-label">${row.label}</span>`;
             optsDiv.appendChild(div);
         });
     } else {
@@ -3071,37 +3154,19 @@ function applyFilter() {
         if(SELECTED_STATUSES.size === 0) SELECTED_STATUSES = new Set(ALL_STATUSES); // guard
     }
 
-    // Orders filter (dept / pickup) - stored separately; empty set means "no restriction"
+    // Orders filter (payment / pickup status / dept / pickup method) - stored separately; empty set means "no restriction"
     if(CURRENT_TAB === 'orders') {
-        const chks = document.querySelectorAll('.filter-chk');
-        const picked = new Set();
-        chks.forEach(c => { if(c.checked) picked.add(String(c.value||"").trim()); });
-
+        const picked = Array.from(document.querySelectorAll('.filter-chk')).filter(c => c.checked).map(c => String(c.value||'').trim());
+        const byKind = (kind) => new Set(picked.filter(v => v.startsWith(kind + ':')).map(v => v.slice(kind.length + 1)));
         const deptsAll = new Set([...new Set(DATA.orders.map(o => String(o.dept||"").trim()))].filter(Boolean));
         const pickupsAll = new Set(['自取', '宅配']);
-
-        const pickedPickups = new Set([...picked].filter(v => pickupsAll.has(v)));
-        const pickedDepts = new Set([...picked].filter(v => deptsAll.has(v)));
-
-        // Group guards:
-        // - none selected OR all selected => no restriction (store empty)
-        if(pickedPickups.size === 0 || pickedPickups.size === pickupsAll.size) {
-            SELECTED_ORDER_PICKUPS = new Set();
-            localStorage.removeItem('admin_order_pickups');
-        } else {
-            SELECTED_ORDER_PICKUPS = pickedPickups;
-            localStorage.setItem('admin_order_pickups', JSON.stringify([...SELECTED_ORDER_PICKUPS]));
-        }
-
-        if(pickedDepts.size === 0 || pickedDepts.size === deptsAll.size) {
-            SELECTED_ORDER_DEPTS = new Set();
-            localStorage.removeItem('admin_order_depts');
-        } else {
-            SELECTED_ORDER_DEPTS = pickedDepts;
-            localStorage.setItem('admin_order_depts', JSON.stringify([...SELECTED_ORDER_DEPTS]));
-        }
-
-        // Legacy combined key is deprecated; clear to avoid confusion
+        const paysAll = new Set(['unpaid', 'paid']);
+        const pickupStatusesAll = new Set(['unpicked', 'picked']);
+        const pickedPickups = byKind('pickup'), pickedDepts = byKind('dept'), pickedPays = byKind('pay'), pickedPickupStatuses = byKind('pickupStatus');
+        if(pickedPickups.size === 0 || pickedPickups.size === pickupsAll.size) { SELECTED_ORDER_PICKUPS = new Set(); localStorage.removeItem('admin_order_pickups'); } else { SELECTED_ORDER_PICKUPS = pickedPickups; localStorage.setItem('admin_order_pickups', JSON.stringify([...SELECTED_ORDER_PICKUPS])); }
+        if(pickedDepts.size === 0 || pickedDepts.size === deptsAll.size) { SELECTED_ORDER_DEPTS = new Set(); localStorage.removeItem('admin_order_depts'); } else { SELECTED_ORDER_DEPTS = pickedDepts; localStorage.setItem('admin_order_depts', JSON.stringify([...SELECTED_ORDER_DEPTS])); }
+        if(pickedPays.size === 0 || pickedPays.size === paysAll.size) { SELECTED_ORDER_PAYMENT_STATUSES = new Set(); localStorage.removeItem('admin_order_payment_statuses'); } else { SELECTED_ORDER_PAYMENT_STATUSES = pickedPays; localStorage.setItem('admin_order_payment_statuses', JSON.stringify([...SELECTED_ORDER_PAYMENT_STATUSES])); }
+        if(pickedPickupStatuses.size === 0 || pickedPickupStatuses.size === pickupStatusesAll.size) { SELECTED_ORDER_PICKUP_STATUSES = new Set(); localStorage.removeItem('admin_order_pickup_statuses'); } else { SELECTED_ORDER_PICKUP_STATUSES = pickedPickupStatuses; localStorage.setItem('admin_order_pickup_statuses', JSON.stringify([...SELECTED_ORDER_PICKUP_STATUSES])); }
         localStorage.removeItem('admin_order_filters');
     }
 
@@ -3127,7 +3192,7 @@ function applyFilter() {
     } else if(CURRENT_TAB === 'sales') {
         active = !setEquals(SELECTED_VISIBILITY.sales, DEFAULT_VIS_SET);
     } else if(CURRENT_TAB === 'orders') {
-        active = (SELECTED_ORDER_PICKUPS.size > 0 || SELECTED_ORDER_DEPTS.size > 0);
+        active = (SELECTED_ORDER_PICKUPS.size > 0 || SELECTED_ORDER_DEPTS.size > 0 || SELECTED_ORDER_PAYMENT_STATUSES.size > 0 || SELECTED_ORDER_PICKUP_STATUSES.size > 0);
     }
     if(active) btn.classList.add('active'); else btn.classList.remove('active');
 
@@ -3144,7 +3209,7 @@ function openSortSheet() {
     else if (CURRENT_TAB === 'orders') { 
         opts = [ 
             {k:'id',l:'單號'}, {k:'time',l:'時間'}, {k:'total',l:'金額'}, 
-            {k:'dept',l:'部門'}, {k:'pickup',l:'取貨'} // [New]
+            {k:'dept',l:'部門'}, {k:'pickup',l:'取貨'}, {k:'paymentStatus',l:'付款'}, {k:'pickupStatus',l:'領貨'}
         ]; 
     }
     opts.forEach(o => {
@@ -3186,20 +3251,8 @@ function renderCurrentTable() {
     } else if (CURRENT_TAB === 'sales') {
         list = DATA.sales.filter(s => ((s.name||"").includes(q)) || ((s.code||"").toString().toLowerCase().includes(q)));
         // V96: Visibility filter (default: 非隱藏)
-        list = list.filter(s => isVisibilityAllowed('sales', s.code));
-    } else if (CURRENT_TAB === 'orders') {
-        list = DATA.orders.filter(o => o.id.toLowerCase().includes(q) || o.name.includes(q));
-        if (q.length === 8 && !isNaN(q)) list = DATA.orders.filter(o => o.id.includes(q) || o.time.replace(/\D/g,'').startsWith(q));
-    }
-
-    // Orders filter (dept / pickup) - only applies on Orders tab (AND by group)
-    if (CURRENT_TAB === 'orders') {
-        if (SELECTED_ORDER_PICKUPS && SELECTED_ORDER_PICKUPS.size > 0) {
-            list = list.filter(o => SELECTED_ORDER_PICKUPS.has(String(o.pickup || '').trim()));
-        }
-        if (SELECTED_ORDER_DEPTS && SELECTED_ORDER_DEPTS.size > 0) {
-            list = list.filter(o => SELECTED_ORDER_DEPTS.has(String(o.dept || '').trim()));
-        }
+        list = list.filter(s => isVisibilityAllowed('sales', s.code));    } else if (CURRENT_TAB === 'orders') {
+        list = getFilteredOrders(q);
     }
 
 if(SORT.key) {
@@ -3324,17 +3377,19 @@ if(SORT.key) {
         else if (CURRENT_TAB === 'orders') {
             list.forEach(o => {
                 const card = document.createElement('div');
-                card.className = 'm-compact-card';
+                card.className = `m-compact-card ${normalizePaymentStatus(o.paymentStatus)==='paid' ? 'order-paid-card' : ''}`;
                 card.id = 'card-' + o.id;
                 card.onclick = () => openOrderModal(o.id, 'view');
+                const stripColor = normalizePaymentStatus(o.paymentStatus)==='paid' ? '#10b981' : '#f59e0b';
                 card.innerHTML = `
-                    <div class="m-status-strip" style="background:#00897b"></div>
+                    <div class="m-status-strip" style="background:${stripColor}"></div>
                     <div style="padding-left:8px;">
                         <div style="display:flex;justify-content:space-between;font-size:12px;color:#90a4ae;margin-bottom:4px;">
                             <span>${o.id}</span>
                             <span>${o.time.split(' ')[0]}</span>
                         </div>
                         <div class="mc-main-text" style="font-size:16px;">${o.name} <span style="font-size:13px;font-weight:400;color:#666">(${o.dept})</span></div>
+                        <div class="order-status-badges" style="margin:6px 0;">${paymentBadgeHtml(o.paymentStatus)}${pickupBadgeHtml(o.pickupStatus)}<span class="pickup-code-chip" style="font-size:11px;padding:3px 6px">${o.pickupCode || '—'}</span></div>
                         <div class="mc-order-footer">
                              <div class="mc-order-total">$${o.total.toLocaleString()}</div>
                              <div>
@@ -3406,11 +3461,14 @@ if(SORT.key) {
                 if(head) head.after(subHeader);
             }
             subHeader.style.display = 'flex';
+            const unpaidCount = list.filter(o => normalizePaymentStatus(o.paymentStatus) !== 'paid').length;
+            const unpickedCount = list.filter(o => normalizePickupStatus(o.pickupStatus) !== 'picked').length;
             subHeader.innerHTML = `
-                <span>總筆數: ${list.length} / 總金額: $${totalSum.toLocaleString()}</span>
-                <button onclick="showItemStats()" style="border:1px solid #2e7d32;background:#fff;color:#2e7d32;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px">
-                    <span class="material-icons-round" style="font-size:16px">poll</span> 貨品統計
-                </button>
+                <span>總筆數: ${list.length} / 總金額: $${totalSum.toLocaleString()}　<span style="font-size:12px;color:#c2410c">未付 ${unpaidCount}</span>　<span style="font-size:12px;color:#1d4ed8">未領 ${unpickedCount}</span></span>
+                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+                  <button onclick="openPickupScanModal()" style="border:1px solid #00695c;background:#fff;color:#00695c;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px"><span class="material-icons-round" style="font-size:16px">qr_code_scanner</span> 掃描</button>
+                  <button onclick="showItemStats()" style="border:1px solid #2e7d32;background:#fff;color:#2e7d32;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px"><span class="material-icons-round" style="font-size:16px">poll</span> 貨品統計</button>
+                </div>
             `;
 
             // [Mod] 更新表頭 (拆分姓名/部門, 新增取貨)
@@ -3420,6 +3478,8 @@ if(SORT.key) {
                 ${getSortHeader('name','姓名')}
                 ${getSortHeader('dept','部門')}
                 ${getSortHeader('pickup','取貨')}
+                ${getSortHeader('paymentStatus','付款')}
+                ${getSortHeader('pickupStatus','領貨')}
                 ${getSortHeader('total','總金額')}
                 <th>操作 <span class="material-icons-round" style="color:#d32f2f;cursor:pointer;font-size:20px;vertical-align:middle;margin-left:8px;" onclick="deleteAllOrders()" title="刪除全部">delete_sweep</span></th>
             </tr></thead><tbody>`;
@@ -3431,12 +3491,14 @@ if(SORT.key) {
                     : `<span style="background:#f5f5f5;color:#607d8b;padding:2px 6px;border-radius:4px;font-size:12px">自取</span>`;
 
                 html += `
-                <tr style="cursor:pointer" onclick="openOrderModal('${o.id}','view')">
-                    <td style="font-size:14px">${o.id}</td>
+                <tr class="${orderRowClass(o)}" style="cursor:pointer" onclick="openOrderModal('${o.id}','view')">
+                    <td style="font-size:14px">${o.id}<br><span class="pickup-code-chip" style="font-size:11px;padding:2px 5px">${o.pickupCode || '—'}</span></td>
                     <td>${o.time.split(' ')[0]}</td>
                     <td><b>${o.name}</b></td>
                     <td><span style="font-size:13px;color:#546e7a">${o.dept}</span></td>
                     <td>${pickupBadge}</td>
+                    <td>${paymentBadgeHtml(o.paymentStatus)}</td>
+                    <td>${pickupBadgeHtml(o.pickupStatus)}</td>
                     <td style="font-weight:700">$${o.total.toLocaleString()}</td>
                     <td>
                         <span class="material-icons-round act-btn" onclick="openOrderModal('${o.id}','edit');event.stopPropagation()">edit</span>
@@ -3542,6 +3604,33 @@ function toggleRegion(row) {
 
 let currentEditOrder = null; // 修正: 全域變數
 
+
+function renderOrderWorkflowPanel(order){
+  if(!order) return;
+  const pay = normalizePaymentStatus(order.paymentStatus || (order.raw && order.raw.payment_status));
+  const pick = normalizePickupStatus(order.pickupStatus || (order.raw && order.raw.pickup_status));
+  const codeEl = document.getElementById('e-pickup-code');
+  if(codeEl) codeEl.textContent = order.pickupCode || (order.raw && order.raw.pickup_code) || '—';
+  const btns = [['e-pay-unpaid', pay === 'unpaid', 'unpay'], ['e-pay-paid', pay === 'paid', 'pay'], ['e-pick-unpicked', pick === 'unpicked', 'unpicked'], ['e-pick-picked', pick === 'picked', 'picked']];
+  btns.forEach(([id, active, kind]) => { const el = document.getElementById(id); if(el) el.className = 'workflow-pill' + (active ? ' active ' + kind : ''); });
+}
+async function updateOrderWorkflowStatus(kind, value){
+  if(!currentEditOrder) return;
+  if(!isAuthed()){ openAuthModal('請先登入後台權限'); return; }
+  const isPayment = kind === 'payment';
+  const payload = isPayment ? { action:'update_payment_status', order_id: currentEditOrder.id, payment_status: normalizePaymentStatus(value) } : { action:'update_pickup_status', order_id: currentEditOrder.id, pickup_status: normalizePickupStatus(value) };
+  showLoading(true, isPayment ? '正在更新付款狀態…' : '正在更新領貨狀態…');
+  try{
+    const res = await gasFetch(payload, true);
+    showLoading(false);
+    if(res && res.ok){
+      if(isPayment){ currentEditOrder.paymentStatus = normalizePaymentStatus(res.payment_status || value); currentEditOrder.paidAt = res.paid_at || ''; if(currentEditOrder.raw){ currentEditOrder.raw.payment_status = currentEditOrder.paymentStatus; currentEditOrder.raw.paid_at = currentEditOrder.paidAt; } }
+      else{ currentEditOrder.pickupStatus = normalizePickupStatus(res.pickup_status || value); currentEditOrder.pickedAt = res.picked_at || ''; if(currentEditOrder.raw){ currentEditOrder.raw.pickup_status = currentEditOrder.pickupStatus; currentEditOrder.raw.picked_at = currentEditOrder.pickedAt; } }
+      renderOrderWorkflowPanel(currentEditOrder); renderCurrentTable(); try{ showToast('狀態已更新'); }catch(e){}
+    }else alert('更新失敗：' + ((res && res.error) || '未知錯誤'));
+  }catch(e){ showLoading(false); console.error(e); alert('更新失敗：連線錯誤'); }
+}
+
 // 開啟訂單視窗 (View/Edit)
 function openOrderModal(oid, mode) {
   const order = DATA.orders.find(o => o.id === oid);
@@ -3572,6 +3661,7 @@ function openOrderModal(oid, mode) {
   }
 
   document.getElementById('e-total').innerText = (order.raw.totals && order.raw.totals.pay) ? order.raw.totals.pay.toLocaleString() : "0";
+  renderOrderWorkflowPanel(order);
 
   // 2. 渲染商品列表
   let html = ''; 
@@ -3650,7 +3740,12 @@ function saveOrderAction() {
     if(currentEditOrder.raw.items) currentEditOrder.raw.items.forEach(fillBundleSummary);
     if(currentEditOrder.raw.gifts) currentEditOrder.raw.gifts.forEach(fillBundleSummary);
 
-    const payload = JSON.parse(JSON.stringify(currentEditOrder.raw)); 
+    const payload = JSON.parse(JSON.stringify(currentEditOrder.raw));
+    payload.payment_status = normalizePaymentStatus(currentEditOrder.paymentStatus || payload.payment_status);
+    payload.pickup_status = normalizePickupStatus(currentEditOrder.pickupStatus || payload.pickup_status);
+    payload.pickup_token = currentEditOrder.pickupToken || payload.pickup_token;
+    payload.pickup_code = currentEditOrder.pickupCode || payload.pickup_code;
+    payload.receipt_email = currentEditOrder.receiptEmail || payload.receipt_email;
     payload.action = "update_order"; 
     payload.order_id = currentEditOrder.id; 
 
@@ -3963,10 +4058,7 @@ async function saveConfig() {
 function showItemStats() {
     // 取得目前篩選後的訂單 (複用 renderCurrentTable 的邏輯有點困難，直接重算一次篩選)
     const q = document.getElementById('tableSearch').value.toLowerCase().trim();
-    let list = DATA.orders.filter(o => o.id.toLowerCase().includes(q) || o.name.includes(q));
-    if (SELECTED_STATUSES.size > 0 && !SELECTED_STATUSES.has('缺貨')) {
-        list = list.filter(o => SELECTED_STATUSES.has(o.dept) || SELECTED_STATUSES.has(o.pickup));
-    }
+    let list = getFilteredOrders(q);
 
     const itemStats = {};
     const giftStats = {};
@@ -4046,6 +4138,19 @@ window.addEventListener('resize', () => { renderCurrentTable(); updateDashboard(
 
 // === Orders auto refresh (optional; Orders tab only) ===
 let ORDERS_AUTO_TIMER = null;
+
+let pickupScanStream = null;
+let pickupScanTimer = null;
+let pickupDetector = null;
+function extractPickupKey(text){ const s = String(text || '').trim(); if(!s) return ''; const m = s.match(/TTLBT_PICKUP\|v1\|(.+)$/); if(m) return m[1].trim(); const m2 = s.match(/TTLBT:ORDER_TOKEN:(.+)$/); if(m2) return m2[1].trim(); return s; }
+function findOrderByPickupKey(key){ const k = String(key || '').trim(); if(!k) return null; return (DATA.orders || []).find(o => String(o.pickupToken || '').trim() === k || String(o.pickupCode || '').trim().toUpperCase() === k.toUpperCase() || String(o.id || '').trim() === k) || null; }
+async function openOrderByPickupText(text){ const key = extractPickupKey(text); let order = findOrderByPickupKey(key); if(!order){ try{ showLoading(true, '正在重新同步訂單…'); await refreshOrdersOnly(true); showLoading(false); order = findOrderByPickupKey(key); }catch(e){ showLoading(false); } } if(order){ if(CURRENT_TAB !== 'orders') switchTab('orders'); openOrderModal(order.id, 'view'); } else { alert('找不到對應訂單。請確認 QR Code 或改用手動輸入取貨碼。\n\n讀取內容：' + key); } }
+function openManualPickupLookup(){ const code = prompt('請輸入取貨碼 / 掃描內容 / 訂單編號'); if(code) openOrderByPickupText(code); }
+async function openPickupScanModal(){ const modal = document.getElementById('pickupScanModal'); const status = document.getElementById('pickupScanStatus'); if(modal) modal.classList.add('open'); if(status) status.textContent = '請允許相機權限，並將同仁手機上的 QR Code 置於畫面中央。'; await startPickupScanner(); }
+function closePickupScanModal(){ const modal = document.getElementById('pickupScanModal'); if(modal) modal.classList.remove('open'); if(pickupScanTimer){ clearInterval(pickupScanTimer); pickupScanTimer = null; } if(pickupScanStream){ pickupScanStream.getTracks().forEach(t => t.stop()); pickupScanStream = null; } const video = document.getElementById('pickupScannerVideo'); if(video) video.srcObject = null; }
+async function restartPickupScanner(){ closePickupScanModal(); setTimeout(openPickupScanModal, 150); }
+async function startPickupScanner(){ const video = document.getElementById('pickupScannerVideo'); const status = document.getElementById('pickupScanStatus'); try{ if(!('BarcodeDetector' in window)){ if(status) status.textContent = '此瀏覽器不支援內建 QR 掃描。請改用「手動輸入」取貨碼。'; return; } let formats=[]; try{ formats=await BarcodeDetector.getSupportedFormats(); }catch(e){} if(formats.length && !formats.includes('qr_code')){ if(status) status.textContent='此瀏覽器的掃描器不支援 QR Code。請改用「手動輸入」。'; return; } pickupDetector = new BarcodeDetector({ formats: ['qr_code'] }); pickupScanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }); video.srcObject = pickupScanStream; await video.play(); if(status) status.textContent = '掃描中…請將 QR Code 放在畫面中央。'; pickupScanTimer = setInterval(async () => { try{ const codes = await pickupDetector.detect(video); if(codes && codes.length){ const raw = codes[0].rawValue || ''; closePickupScanModal(); openOrderByPickupText(raw); } }catch(e){} }, 650); }catch(e){ console.error(e); if(status) status.textContent = '無法啟用相機。請確認權限，或改用手動輸入取貨碼。'; } }
+
 const ORDERS_AUTO_ENABLED_KEY = 'ttl_admin_orders_autorefresh_enabled';
 const ORDERS_AUTO_INTERVAL_KEY = 'ttl_admin_orders_autorefresh_interval';
 let ORDERS_AUTO_ENABLED = localStorage.getItem(ORDERS_AUTO_ENABLED_KEY) === 'true';
@@ -4133,6 +4238,8 @@ async function refreshAllData(silent = true) {
 function renderOrdersAutoControls(){
   const wrap = document.getElementById('ordersAutoRefresh');
   if(wrap) wrap.style.display = (CURRENT_TAB === 'orders') ? 'flex' : 'none';
+  const tools = document.getElementById('orderTools');
+  if(tools) tools.style.display = (CURRENT_TAB === 'orders') ? 'flex' : 'none';
   const t = document.getElementById('oarToggle');
   const p = document.getElementById('oarInterval');
   if(t){ t.classList.toggle('on', !!ORDERS_AUTO_ENABLED); }
