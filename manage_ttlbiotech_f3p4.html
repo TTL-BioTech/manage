@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>TTL BIO-TECH 戰情中心 V98.13.15</title>
+<title>TTL BIO-TECH 戰情中心 V98.13.16</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00897b">
   <meta name="apple-mobile-web-app-title" content="TTL-Bio Dashboard">
@@ -219,6 +219,8 @@ header { height: var(--header-height); background: #fff; border-bottom: 1px soli
 /* Table View */
 .data-panel { background: #fff; border-radius: 8px; border: 1px solid #e0e0e0; display: flex; flex-direction: column; flex: 1; overflow: hidden; }
 .panel-head { padding: 12px 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; background: #fafafa; }
+.panel-primary-row{display:flex;align-items:center;gap:10px;flex:1;min-width:0;}
+.panel-secondary-row{display:flex;align-items:center;justify-content:flex-end;flex:0 0 auto;}
 
 .panel-actions{ display:flex; align-items:center; gap:10px; }
 .oar{ display:flex; align-items:center; gap:6px; }
@@ -443,13 +445,26 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
     .data-panel { border: none; background: transparent; display: flex; flex-direction: column; }
     
     .panel-head { position: fixed; top: 45px; left: 0; right: 0; height: 50px; z-index: 100; padding: 8px 10px; border-bottom: 1px solid #ddd; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; gap: 8px; align-items: center; }
-    .search-wrap { flex: 1; width: auto; }
+    .panel-primary-row{flex:1;min-width:0;}
+    .panel-secondary-row{flex:0 0 auto;}
+    .search-wrap { flex: 1; width: auto; min-width:0; }
     .search-wrap input { padding: 8px 30px 8px 34px; font-size: 14px; height: 34px; }
     .search-wrap .icon { font-size: 18px; left: 8px; }
     
     #mobile-sort-btn { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; background: #f5f5f5; border-radius: 50%; color: #546e7a; cursor: pointer; flex-shrink: 0; }
     
-    .table-container { background: transparent; padding-top: 10px; margin-top: 55px; } 
+    .table-container { background: transparent; padding-top: 10px; margin-top: 55px; }
+    .panel-head.orders-tools-active{height:96px;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:7px;padding:8px 10px 7px;}
+    .panel-head.orders-tools-active .panel-primary-row{width:100%;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;flex:0 0 auto;}
+    .panel-head.orders-tools-active .search-wrap{width:100%;flex:none;}
+    .panel-head.orders-tools-active #orderTools{width:100%;display:grid!important;grid-template-columns:1fr 1fr;gap:6px;}
+    .panel-head.orders-tools-active .order-tool-btn{height:34px;min-width:0;justify-content:center;border-radius:999px;padding:0 8px;font-size:12px;box-shadow:0 1px 4px rgba(0,105,92,0.08);}
+    .panel-head.orders-tools-active .order-tool-btn .material-icons-round{font-size:17px;}
+    .panel-head.orders-tools-active .order-tool-label{display:inline;font-size:12px;line-height:1;white-space:nowrap;}
+    .panel-head.orders-tools-active .panel-secondary-row{width:100%;display:flex;align-items:center;justify-content:flex-end;min-height:36px;}
+    .panel-head.orders-tools-active .panel-actions{width:100%;justify-content:flex-end;gap:8px;}
+    .panel-head.orders-tools-active + #analysisToolbar + .table-container,
+    .panel-head.orders-tools-active ~ .table-container{margin-top:101px;} 
     table { display: none; }
     .m-card { width: 100%; height: 100%; max-height: 100%; border-radius: 0; }
     .m-body { padding: 15px; }
@@ -745,7 +760,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 
 <div id="loading-mask">
   <div class="spinner"></div>
-  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.13.15)...</div>
+  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.13.16)...</div>
 </div>
 
 <div id="restoreWidget" onclick="toggleRestoreList(event)">
@@ -974,27 +989,31 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 
     <div id="view-table-container" class="view-section" style="display:none; flex:1; flex-direction:column; min-height:0;">
       <div class="data-panel">
-        <div class="panel-head">
-          <div style="font-weight:700;color:var(--text-sub);display:none;" id="table-subtitle">列表</div>
-          <div class="search-wrap">
-            <span class="material-icons-round icon">search</span>
-            <input id="tableSearch" type="text" placeholder="搜尋..." oninput="handleSearchInput()">
-            <span id="searchClear" class="material-icons-round search-clear" onclick="clearSearch()">close</span>
-          </div>
-          <div class="panel-actions">
+        <div class="panel-head" id="tablePanelHead">
+          <div class="panel-primary-row">
+            <div style="font-weight:700;color:var(--text-sub);display:none;" id="table-subtitle">列表</div>
+            <div class="search-wrap">
+              <span class="material-icons-round icon">search</span>
+              <input id="tableSearch" type="text" placeholder="搜尋..." oninput="handleSearchInput()">
+              <span id="searchClear" class="material-icons-round search-clear" onclick="clearSearch()">close</span>
+            </div>
             <div id="orderTools" class="order-tools" style="display:none;">
-              <button class="order-tool-btn" onclick="openPickupScanModal()" title="掃描取貨碼"><span class="material-icons-round">qr_code_scanner</span><span class="hide-mobile-label">掃描</span></button>
-              <button class="order-tool-btn" onclick="openManualPickupLookup()" title="手動輸入取貨碼"><span class="material-icons-round">pin</span></button>
+              <button class="order-tool-btn" onclick="openPickupScanModal()" title="掃描取貨碼" aria-label="掃描取貨碼"><span class="material-icons-round">qr_code_scanner</span><span class="order-tool-label">掃碼</span></button>
+              <button class="order-tool-btn" onclick="openManualPickupLookup()" title="手動輸入取貨碼" aria-label="手動輸入取貨碼"><span class="material-icons-round">pin</span><span class="order-tool-label">輸入</span></button>
             </div>
-            <div id="filter-btn" class="filter-btn" onclick="openFilterSheet()"><span class="material-icons-round" style="font-size:20px">filter_alt</span></div>
-            <div id="ordersAutoRefresh" class="oar" style="display:none;">
-              <button id="oarToggle" class="oar-btn" onclick="toggleOrdersAutoRefresh()" title="訂單自動更新" aria-label="訂單自動更新">
-                <span class="material-icons-round">autorenew</span>
-              </button>
-              <button id="oarInterval" class="oar-pill" onclick="cycleOrdersAutoInterval()" title="切換自動更新間隔" aria-label="切換自動更新間隔">120s</button>
+          </div>
+          <div class="panel-secondary-row">
+            <div class="panel-actions">
+              <div id="filter-btn" class="filter-btn" onclick="openFilterSheet()"><span class="material-icons-round" style="font-size:20px">filter_alt</span></div>
+              <div id="ordersAutoRefresh" class="oar" style="display:none;">
+                <button id="oarToggle" class="oar-btn" onclick="toggleOrdersAutoRefresh()" title="訂單自動更新" aria-label="訂單自動更新">
+                  <span class="material-icons-round">autorenew</span>
+                </button>
+                <button id="oarInterval" class="oar-pill" onclick="cycleOrdersAutoInterval()" title="切換自動更新間隔" aria-label="切換自動更新間隔">120s</button>
+              </div>
+              <div id="mobile-sort-btn" onclick="openSortSheet()"><span class="material-icons-round" style="font-size:20px">sort</span></div>
+              <span id="mobile-del-all" class="material-icons-round" style="display:none; color:#d32f2f; margin-left:10px; cursor:pointer;" onclick="deleteAllOrders()">delete_sweep</span>
             </div>
-            <div id="mobile-sort-btn" onclick="openSortSheet()"><span class="material-icons-round" style="font-size:20px">sort</span></div>
-            <span id="mobile-del-all" class="material-icons-round" style="display:none; color:#d32f2f; margin-left:10px; cursor:pointer;" onclick="deleteAllOrders()">delete_sweep</span>
           </div>
         </div>
         <div id="analysisToolbar" class="analysis-toolbar"></div>
@@ -1227,7 +1246,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = '98.13.15';
+const APP_VERSION = '98.13.16';
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -1630,6 +1649,9 @@ async function init() {
 
     window.addEventListener('popstate', (e) => {
         const state = e.state || {};
+        if(document.getElementById('filterSheet').classList.contains('open') && state.sheet !== 'filter') { closeFilterSheet(false); return; }
+        if(document.getElementById('sortSheet').classList.contains('open') && state.sheet !== 'sort') { closeSortSheet(false); return; }
+        if(document.getElementById('pickupScanModal').classList.contains('open') && state.modal !== 'pickupScan') { closePickupScanModal(false); return; }
         if(document.getElementById('infoModal').classList.contains('open') && !state.modal) { closeInfoModal(false); return; }
         if (document.getElementById('editModal').classList.contains('open') && !state.modal) { closeModal(false); return; }
         if(document.getElementById('view-full-chart').style.display === 'flex' && !state.fullchart) { closeFullChart(false); return; }
@@ -2237,7 +2259,7 @@ function switchTab(tab, pushToHistory = true, preserveState = false) {
     } else if(tab === 'sales') {
         fbtn.classList.toggle('active', !setEquals(SELECTED_VISIBILITY.sales, DEFAULT_VIS_SET));
     } else if(tab === 'orders') {
-        fbtn.classList.toggle('active', (SELECTED_ORDER_PICKUPS.size > 0 || SELECTED_ORDER_DEPTS.size > 0));
+        fbtn.classList.toggle('active', (SELECTED_ORDER_PICKUPS.size > 0 || SELECTED_ORDER_DEPTS.size > 0 || SELECTED_ORDER_PAYMENT_STATUSES.size > 0 || SELECTED_ORDER_PICKUP_STATUSES.size > 0));
     } else {
         fbtn.classList.remove('active');
     }
@@ -3020,6 +3042,13 @@ function getFilteredOrders(qRaw){
   return list;
 }
 
+function pushTransientUiState(extra){
+    const base = (history.state && typeof history.state === 'object') ? Object.assign({}, history.state) : { tab: CURRENT_TAB || 'dashboard' };
+    delete base.sheet;
+    if(base.modal && extra && extra.modal) delete base.modal;
+    history.pushState(Object.assign(base, extra || {}), '', '');
+}
+
 function openFilterSheet() {
     const optsDiv = document.getElementById('filterOptions');
     const visDiv = document.getElementById('visibilityOptions');
@@ -3136,8 +3165,13 @@ function openFilterSheet() {
 
     document.getElementById('filterSheet').classList.add('open');
     document.getElementById('sortOverlay').style.display = 'block';
+    if(!(history.state && history.state.sheet === 'filter')) pushTransientUiState({sheet:'filter'});
 }
-function closeFilterSheet() { document.getElementById('filterSheet').classList.remove('open'); document.getElementById('sortOverlay').style.display = 'none'; }
+function closeFilterSheet(goBackHist = true) {
+    document.getElementById('filterSheet').classList.remove('open');
+    document.getElementById('sortOverlay').style.display = document.getElementById('sortSheet').classList.contains('open') ? 'block' : 'none';
+    if(goBackHist && history.state && history.state.sheet === 'filter') history.back();
+}
 
 function toggleAllFilters(enable, group='status') {
     const selector = (group === 'vis') ? '.filter-vis-chk' : '.filter-chk';
@@ -3221,9 +3255,18 @@ function openSortSheet() {
     });
     document.getElementById('sortSheet').classList.add('open');
     document.getElementById('sortOverlay').style.display = 'block';
+    if(!(history.state && history.state.sheet === 'sort')) pushTransientUiState({sheet:'sort'});
 }
-function closeSortSheet() { document.getElementById('sortSheet').classList.remove('open'); document.getElementById('sortOverlay').style.display = 'none'; }
-function closeAllSheets() { closeSortSheet(); closeFilterSheet(); }
+function closeSortSheet(goBackHist = true) {
+    document.getElementById('sortSheet').classList.remove('open');
+    document.getElementById('sortOverlay').style.display = document.getElementById('filterSheet').classList.contains('open') ? 'block' : 'none';
+    if(goBackHist && history.state && history.state.sheet === 'sort') history.back();
+}
+function closeAllSheets() {
+    if(document.getElementById('sortSheet').classList.contains('open')) { closeSortSheet(); return; }
+    if(document.getElementById('filterSheet').classList.contains('open')) { closeFilterSheet(); return; }
+    document.getElementById('sortOverlay').style.display = 'none';
+}
 
 function renderCurrentTable() {
     const isMobile = window.innerWidth <= 768;
@@ -4145,11 +4188,37 @@ let pickupDetector = null;
 function extractPickupKey(text){ const s = String(text || '').trim(); if(!s) return ''; const m = s.match(/TTLBT_PICKUP\|v1\|(.+)$/); if(m) return m[1].trim(); const m2 = s.match(/TTLBT:ORDER_TOKEN:(.+)$/); if(m2) return m2[1].trim(); return s; }
 function findOrderByPickupKey(key){ const k = String(key || '').trim(); if(!k) return null; return (DATA.orders || []).find(o => String(o.pickupToken || '').trim() === k || String(o.pickupCode || '').trim().toUpperCase() === k.toUpperCase() || String(o.id || '').trim() === k) || null; }
 async function openOrderByPickupText(text){ const key = extractPickupKey(text); let order = findOrderByPickupKey(key); if(!order){ try{ showLoading(true, '正在重新同步訂單…'); await refreshOrdersOnly(true); showLoading(false); order = findOrderByPickupKey(key); }catch(e){ showLoading(false); } } if(order){ if(CURRENT_TAB !== 'orders') switchTab('orders'); openOrderModal(order.id, 'view'); } else { alert('找不到對應訂單。請確認 QR Code 或改用手動輸入取貨碼。\n\n讀取內容：' + key); } }
-function openManualPickupLookup(){ const code = prompt('請輸入取貨碼 / 掃描內容 / 訂單編號'); if(code) openOrderByPickupText(code); }
-async function openPickupScanModal(){ const modal = document.getElementById('pickupScanModal'); const status = document.getElementById('pickupScanStatus'); if(modal) modal.classList.add('open'); if(status) status.textContent = '請允許相機權限，並將同仁手機上的 QR Code 置於畫面中央。'; await startPickupScanner(); }
-function closePickupScanModal(){ const modal = document.getElementById('pickupScanModal'); if(modal) modal.classList.remove('open'); if(pickupScanTimer){ clearInterval(pickupScanTimer); pickupScanTimer = null; } if(pickupScanStream){ pickupScanStream.getTracks().forEach(t => t.stop()); pickupScanStream = null; } const video = document.getElementById('pickupScannerVideo'); if(video) video.srcObject = null; }
-async function restartPickupScanner(){ closePickupScanModal(); setTimeout(openPickupScanModal, 150); }
-async function startPickupScanner(){ const video = document.getElementById('pickupScannerVideo'); const status = document.getElementById('pickupScanStatus'); try{ if(!('BarcodeDetector' in window)){ if(status) status.textContent = '此瀏覽器不支援內建 QR 掃描。請改用「手動輸入」取貨碼。'; return; } let formats=[]; try{ formats=await BarcodeDetector.getSupportedFormats(); }catch(e){} if(formats.length && !formats.includes('qr_code')){ if(status) status.textContent='此瀏覽器的掃描器不支援 QR Code。請改用「手動輸入」。'; return; } pickupDetector = new BarcodeDetector({ formats: ['qr_code'] }); pickupScanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }); video.srcObject = pickupScanStream; await video.play(); if(status) status.textContent = '掃描中…請將 QR Code 放在畫面中央。'; pickupScanTimer = setInterval(async () => { try{ const codes = await pickupDetector.detect(video); if(codes && codes.length){ const raw = codes[0].rawValue || ''; closePickupScanModal(); openOrderByPickupText(raw); } }catch(e){} }, 650); }catch(e){ console.error(e); if(status) status.textContent = '無法啟用相機。請確認權限，或改用手動輸入取貨碼。'; } }
+function clearPickupScanHistoryState(){
+  if(history.state && history.state.modal === 'pickupScan') {
+    const base = Object.assign({}, history.state);
+    delete base.modal;
+    history.replaceState(base, '', '');
+  }
+}
+function openManualPickupLookup(){
+  if(document.getElementById('pickupScanModal').classList.contains('open')) { closePickupScanModal(false); clearPickupScanHistoryState(); }
+  const code = prompt('請輸入取貨碼 / 掃描內容 / 訂單編號');
+  if(code) openOrderByPickupText(code);
+}
+async function openPickupScanModal(){
+  const modal = document.getElementById('pickupScanModal');
+  const status = document.getElementById('pickupScanStatus');
+  if(modal) modal.classList.add('open');
+  if(status) status.textContent = '請允許相機權限，並將同仁手機上的 QR Code 置於畫面中央。';
+  if(!(history.state && history.state.modal === 'pickupScan')) pushTransientUiState({modal:'pickupScan'});
+  await startPickupScanner();
+}
+function closePickupScanModal(goBackHist = true){
+  const modal = document.getElementById('pickupScanModal');
+  if(modal) modal.classList.remove('open');
+  if(pickupScanTimer){ clearInterval(pickupScanTimer); pickupScanTimer = null; }
+  if(pickupScanStream){ pickupScanStream.getTracks().forEach(t => t.stop()); pickupScanStream = null; }
+  const video = document.getElementById('pickupScannerVideo');
+  if(video) video.srcObject = null;
+  if(goBackHist && history.state && history.state.modal === 'pickupScan') history.back();
+}
+async function restartPickupScanner(){ closePickupScanModal(false); clearPickupScanHistoryState(); setTimeout(openPickupScanModal, 150); }
+async function startPickupScanner(){ const video = document.getElementById('pickupScannerVideo'); const status = document.getElementById('pickupScanStatus'); try{ if(!('BarcodeDetector' in window)){ if(status) status.textContent = '此瀏覽器不支援內建 QR 掃描。請改用「手動輸入」取貨碼。'; return; } let formats=[]; try{ formats=await BarcodeDetector.getSupportedFormats(); }catch(e){} if(formats.length && !formats.includes('qr_code')){ if(status) status.textContent='此瀏覽器的掃描器不支援 QR Code。請改用「手動輸入」。'; return; } pickupDetector = new BarcodeDetector({ formats: ['qr_code'] }); pickupScanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }); video.srcObject = pickupScanStream; await video.play(); if(status) status.textContent = '掃描中…請將 QR Code 放在畫面中央。'; pickupScanTimer = setInterval(async () => { try{ const codes = await pickupDetector.detect(video); if(codes && codes.length){ const raw = codes[0].rawValue || ''; closePickupScanModal(false); clearPickupScanHistoryState(); openOrderByPickupText(raw); } }catch(e){} }, 650); }catch(e){ console.error(e); if(status) status.textContent = '無法啟用相機。請確認權限，或改用手動輸入取貨碼。'; } }
 
 const ORDERS_AUTO_ENABLED_KEY = 'ttl_admin_orders_autorefresh_enabled';
 const ORDERS_AUTO_INTERVAL_KEY = 'ttl_admin_orders_autorefresh_interval';
@@ -4240,6 +4309,8 @@ function renderOrdersAutoControls(){
   if(wrap) wrap.style.display = (CURRENT_TAB === 'orders') ? 'flex' : 'none';
   const tools = document.getElementById('orderTools');
   if(tools) tools.style.display = (CURRENT_TAB === 'orders') ? 'flex' : 'none';
+  const head = document.getElementById('tablePanelHead');
+  if(head) head.classList.toggle('orders-tools-active', CURRENT_TAB === 'orders');
   const t = document.getElementById('oarToggle');
   const p = document.getElementById('oarInterval');
   if(t){ t.classList.toggle('on', !!ORDERS_AUTO_ENABLED); }
