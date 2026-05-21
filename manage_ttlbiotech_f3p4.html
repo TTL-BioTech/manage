@@ -400,6 +400,78 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
   .region-view-toggle { right: 12px; bottom: 12px; padding: 9px 12px; }
 }
 
+
+/* --- Stock Map Redesign Override (V98.14.01 mapfix5) --- */
+.stock-map-card{
+  position:relative; overflow:hidden; border:1px solid rgba(0,137,123,.12); border-radius:18px;
+  background: radial-gradient(circle at 14% 12%, rgba(0,137,123,.09), transparent 22%), linear-gradient(180deg, #fbfffe 0%, #f3faf8 100%);
+  padding:12px 12px 62px; min-height:0;
+}
+.stock-map-titlebar{ margin-bottom: 8px; }
+.stock-map-title{ font-size:13px; font-weight:1000; }
+.stock-map-date{ font-size:12px; }
+.stock-map-legendline{ display:flex; align-items:center; gap:4px; flex-wrap:wrap; margin: 0 0 8px; color:#6d7f88; font-size:10px; font-weight:900; }
+.stock-map-legendline .legend-label{ margin-right:2px; }
+.stock-map-legendline .legend-label.low{ margin-left:3px; }
+.stock-map-legendline .legend-dot{ width:9px; height:9px; border-radius:50%; border:1px solid rgba(255,255,255,.92); box-shadow:0 1px 4px rgba(0,0,0,.05); }
+.stock-map-svg-wrap{ position:relative; height:320px; border-radius:16px; background:linear-gradient(160deg, rgba(227,242,253,.78), rgba(232,245,233,.64)); overflow:hidden; }
+.stock-map-svg-wrap:before{ opacity:.20; background-size:24px 24px; }
+.stock-map-svg-wrap:after{ content:""; position:absolute; inset:0; background:radial-gradient(circle at 50% 18%, rgba(255,255,255,.40), transparent 28%); pointer-events:none; }
+.stock-map-svg{ position:relative; width:100%; height:100%; display:block; }
+.tw-outline{ fill:rgba(255,255,255,.88); stroke:rgba(0,77,64,.16); stroke-width:1.25; filter:drop-shadow(0 10px 18px rgba(0,77,64,.10)); }
+.stock-node{ stroke:rgba(255,255,255,.96); stroke-width:2.15; transition:transform .16s ease, opacity .16s ease; transform-box:fill-box; transform-origin:center; }
+.stock-node-group:hover .stock-node{ transform:scale(1.04); }
+.stock-node-hit{ fill:transparent; cursor:pointer; }
+.stock-node-top-ring{ fill:none; stroke:#d32f2f; stroke-width:2.4; opacity:.95; }
+.stock-node-selected-ring{ fill:none; stroke:#2458d3; stroke-width:3.2; opacity:.90; filter:drop-shadow(0 0 6px rgba(36,88,211,.25)); }
+.stock-map-selected{ margin:10px 0 8px; padding:10px 12px; border-radius:14px; background:rgba(255,255,255,.84); border:1px solid rgba(0,137,123,.12); display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.stock-map-selected .left{ min-width:0; display:flex; flex-direction:column; gap:4px; }
+.stock-map-selected .line1{ display:flex; align-items:center; gap:7px; min-width:0; flex-wrap:wrap; }
+.stock-map-selected .name{ font-size:13px; font-weight:1000; color:#263238; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.stock-map-selected .type-badge{ font-size:10px; font-weight:900; color:#607d8b; background:#eef5f7; border:1px solid rgba(96,125,139,.16); border-radius:999px; padding:2px 6px; }
+.stock-map-selected .sub{ font-size:11px; font-weight:800; color:#74858e; }
+.stock-map-selected .right{ text-align:right; flex:0 0 auto; }
+.stock-map-selected .qty{ font-size:20px; line-height:1; font-weight:1000; color:var(--primary); }
+.stock-map-selected .lbl{ font-size:10px; margin-top:3px; color:#90a4ae; font-weight:900; }
+.stock-tone-swatch{ width:12px; height:12px; border-radius:50%; border:1.6px solid rgba(255,255,255,.95); box-shadow:0 1px 4px rgba(0,0,0,.06); flex:0 0 auto; }
+.stock-map-list-title{ margin-top:10px; font-size:12px; font-weight:1000; color:#455a64; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.stock-map-list-title .hint{ font-size:10px; color:#90a4ae; font-weight:800; }
+.stock-map-list{ margin-top:8px; display:flex; flex-direction:column; gap:7px; max-height:240px; overflow:auto; padding-right:3px; }
+.stock-map-list-item{ width:100%; border:1px solid rgba(0,137,123,.13); background:#fff; border-radius:14px; padding:8px 10px; display:grid; grid-template-columns:26px 14px minmax(0,1fr) auto; gap:8px; align-items:center; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,.03); transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease; }
+.stock-map-list-item:hover{ transform:translateY(-1px); box-shadow:0 6px 14px rgba(0,0,0,.07); }
+.stock-map-list-item.selected{ background:linear-gradient(180deg, #f5fbff 0%, #eef7ff 100%); border-color:rgba(36,88,211,.32); box-shadow:0 8px 18px rgba(36,88,211,.08); }
+.stock-map-list-item.top{ border-color:rgba(211,47,47,.36); }
+.stock-map-list-item.is-unmatched{ cursor:default; opacity:.86; }
+.stock-map-list-item.is-unmatched:hover{ transform:none; box-shadow:0 2px 8px rgba(0,0,0,.03); }
+.stock-map-list-rank{ width:26px; height:26px; border-radius:999px; background:#eef6f5; color:#00695c; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:1000; border:1px solid rgba(0,137,123,.12); }
+.stock-map-list-item.top .stock-map-list-rank{ background:#fff4f4; color:#c62828; border-color:rgba(211,47,47,.22); }
+.stock-map-list-main{ min-width:0; display:flex; flex-direction:column; gap:2px; }
+.stock-map-list-name{ font-size:12px; font-weight:1000; color:#263238; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.stock-map-list-meta{ font-size:10px; font-weight:800; color:#90a4ae; }
+.stock-map-list-qty{ font-size:15px; font-weight:1000; color:#00695c; white-space:nowrap; }
+.stock-map-list-item.is-unmatched .stock-map-list-qty{ color:#607d8b; }
+.stock-map-list-empty{ padding:10px 0 4px; color:#90a4ae; font-size:11px; font-weight:900; }
+.stock-map-empty{ height:220px; display:flex; align-items:center; justify-content:center; color:#90a4ae; font-weight:900; font-size:13px; border-radius:14px; background:#f5f5f5; }
+.stock-map-callout{ font-size:11px; font-weight:900; color:#90a4ae; margin-top:6px; line-height:1.55; }
+.tone-g6,.stock-tone-swatch.tone-g6,.legend-dot.tone-g6{ background:#0d7c5a; fill:#0d7c5a; }
+.tone-g5,.stock-tone-swatch.tone-g5,.legend-dot.tone-g5{ background:#1f9569; fill:#1f9569; }
+.tone-g4,.stock-tone-swatch.tone-g4,.legend-dot.tone-g4{ background:#3aaf79; fill:#3aaf79; }
+.tone-g3,.stock-tone-swatch.tone-g3,.legend-dot.tone-g3{ background:#5ec08d; fill:#5ec08d; }
+.tone-g2,.stock-tone-swatch.tone-g2,.legend-dot.tone-g2{ background:#84d4a7; fill:#84d4a7; }
+.tone-g1,.stock-tone-swatch.tone-g1,.legend-dot.tone-g1{ background:#b9e7cd; fill:#b9e7cd; }
+.tone-n0,.stock-tone-swatch.tone-n0,.legend-dot.tone-n0{ background:#ecf2ef; fill:#ecf2ef; }
+.tone-r1,.stock-tone-swatch.tone-r1,.legend-dot.tone-r1{ background:#f6d3d3; fill:#f6d3d3; }
+.tone-r2,.stock-tone-swatch.tone-r2,.legend-dot.tone-r2{ background:#efaaaa; fill:#efaaaa; }
+.tone-r3,.stock-tone-swatch.tone-r3,.legend-dot.tone-r3{ background:#e67676; fill:#e67676; }
+@media (max-width: 768px){
+  .stock-map-card{ padding:12px 12px 64px; }
+  .stock-map-svg-wrap{ height:330px; }
+  .stock-map-list{ max-height:258px; }
+  .stock-map-selected .qty{ font-size:19px; }
+  .stock-map-list-item{ grid-template-columns:24px 14px minmax(0,1fr) auto; padding:8px 9px; }
+}
+
+
 /* --- Mobile / Adaptive Styles --- */
 #bottom-nav { display: none; }
 .mobile-card-container { display: flex; flex-direction: column; gap: 8px; padding-bottom: 80px; }
@@ -3994,6 +4066,279 @@ function getShortRegionName(name) {
     if(name.includes('台北啤酒工場')) return '北啤推廣';
     return name.replace(/啤酒廠產品推廣中心/g, '啤推廣').replace(/酒廠產品推廣中心/g, '酒廠推廣').replace(/營業處/g, '處').replace(/展售中心/g, '展售');
 }
+
+
+/* ===== Stock Map Redesign Override (V98.14.01 mapfix5) ===== */
+function getStockFixedNodeRadius() {
+  return window.innerWidth <= 768 ? 10.2 : 10.8;
+}
+
+function getStockScorePercentile(qty, sortedVals) {
+  if(!sortedVals || !sortedVals.length) return 0;
+  if(sortedVals.length === 1) return qty > 0 ? 1 : 0;
+  let idx = 0;
+  while(idx < sortedVals.length && sortedVals[idx] <= qty) idx++;
+  return Math.max(0, (idx - 1) / (sortedVals.length - 1));
+}
+
+function getStockToneClassByScore(qty, maxQty, sortedVals) {
+  if(!qty || qty <= 0 || !maxQty) return 'tone-r3';
+  const ratio = maxQty > 0 ? (qty / maxQty) : 0;
+  const percentile = getStockScorePercentile(qty, sortedVals);
+  const score = ratio * 0.72 + percentile * 0.28;
+  if(score >= 0.88) return 'tone-g6';
+  if(score >= 0.76) return 'tone-g5';
+  if(score >= 0.64) return 'tone-g4';
+  if(score >= 0.52) return 'tone-g3';
+  if(score >= 0.40) return 'tone-g2';
+  if(score >= 0.28) return 'tone-g1';
+  if(score >= 0.18) return 'tone-n0';
+  if(score >= 0.11) return 'tone-r1';
+  if(score >= 0.05) return 'tone-r2';
+  return 'tone-r3';
+}
+
+function layoutStockMapBubbles(points, w=280, h=430) {
+  if(!points || !points.length) return points;
+  const radius = getStockFixedNodeRadius();
+  const sorted = [...points].sort((a,b) => Number(b.lat||0) - Number(a.lat||0) || Number(a.lng||0) - Number(b.lng||0));
+  sorted.forEach((p) => {
+    p.r = radius;
+    const proj = projectLatLngToTaiwanPoint(p.lat, p.lng, w, h);
+    p.tx = proj.x;
+    p.ty = proj.y;
+    p.x = proj.x;
+    p.y = proj.y;
+  });
+
+  const minGapY = 13.5;
+  let lastY = 42;
+  sorted.forEach((p, idx) => {
+    p.y = idx === 0 ? Math.max(48, p.ty) : Math.max(p.ty, lastY + minGapY);
+    lastY = p.y;
+  });
+  const maxBottom = 372;
+  if(lastY > maxBottom) {
+    const overflow = lastY - maxBottom;
+    sorted.forEach((p, idx) => {
+      const t = sorted.length <= 1 ? 0 : idx / (sorted.length - 1);
+      p.y -= overflow * (0.34 + t * 0.66);
+    });
+  }
+
+  const clusters = [];
+  sorted.forEach((p) => {
+    const last = clusters[clusters.length - 1];
+    if(!last || Math.abs(p.y - last.y) > 18) {
+      clusters.push({ y: p.y, items: [p] });
+    } else {
+      last.items.push(p);
+      last.y = (last.y * (last.items.length - 1) + p.y) / last.items.length;
+    }
+  });
+
+  clusters.forEach(cluster => {
+    const y = cluster.y;
+    const bounds = stockMapBoundsAtY(y, w, h, radius + 5);
+    const center = bounds.center - 5 + Math.sin((y - 40) / 68) * 4;
+    const east = cluster.items.filter(p => Number(p.lng) >= 121.18).sort((a,b) => Number(a.lat) - Number(b.lat));
+    const west = cluster.items.filter(p => Number(p.lng) < 121.18).sort((a,b) => Number(a.lng) - Number(b.lng));
+    const westOffsets = [-30, -12, 8, -48, 24, 40];
+    const eastOffsets = [28, 44, 14, 58];
+    const westY = [0, -9, 9, -16, 16, 0];
+    const eastY = [0, -9, 9, -16];
+    west.forEach((p, idx) => {
+      p.x = center + (westOffsets[idx] != null ? westOffsets[idx] : (-30 + idx * 14));
+      p.y = y + (westY[idx] != null ? westY[idx] : (((idx % 2) ? -1 : 1) * 11));
+      constrainPointToTaiwanShape(p, w, h);
+      p.ax = p.x; p.ay = p.y;
+    });
+    east.forEach((p, idx) => {
+      p.x = center + (eastOffsets[idx] != null ? eastOffsets[idx] : (28 + idx * 12));
+      p.y = y + (eastY[idx] != null ? eastY[idx] : (((idx % 2) ? -1 : 1) * 11));
+      constrainPointToTaiwanShape(p, w, h);
+      p.ax = p.x; p.ay = p.y;
+    });
+  });
+
+  const collisionGap = radius * 2 + 4.8;
+  for(let iter = 0; iter < 140; iter++) {
+    sorted.forEach(p => {
+      if(p.ax == null || p.ay == null) { p.ax = p.x; p.ay = p.y; }
+      p.x += (p.ax - p.x) * 0.055;
+      p.y += (p.ay - p.y) * 0.035;
+      constrainPointToTaiwanShape(p, w, h);
+    });
+    for(let i=0; i<sorted.length; i++) {
+      for(let j=i+1; j<sorted.length; j++) {
+        const a = sorted[i], b = sorted[j];
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let dist = Math.hypot(dx, dy);
+        if(dist < 0.01) {
+          const angle = ((i + 1) * 2.399963 + j) % (Math.PI * 2);
+          dx = Math.cos(angle); dy = Math.sin(angle); dist = 1;
+        }
+        if(dist < collisionGap) {
+          const push = (collisionGap - dist) / 2;
+          const ux = dx / dist, uy = dy / dist;
+          a.x -= ux * push; a.y -= uy * push;
+          b.x += ux * push; b.y += uy * push;
+          constrainPointToTaiwanShape(a, w, h);
+          constrainPointToTaiwanShape(b, w, h);
+        }
+      }
+    }
+  }
+  sorted.forEach(p => constrainPointToTaiwanShape(p, w, h));
+  return sorted;
+}
+
+function buildStockMapData(item) {
+  const regions = (item && item.regions ? item.regions : []).map(r => ({ ...r, qty: Number(r.qty) || 0 }));
+  const maxQty = Math.max(...regions.map(r => r.qty), 0);
+  const nonZero = regions.map(r => r.qty).filter(q => q > 0).sort((a,b) => a - b);
+  const points = [];
+  const unmatched = [];
+  const allEntries = [];
+
+  regions.forEach(r => {
+    const code = String(r.code || getStockMapRegionCode(r.name) || '');
+    const mapPoint = code ? STOCK_MAP_POINT_BY_CODE.get(code) : null;
+    if(!mapPoint) {
+      const miss = { code:'', name:r.name, qty:r.qty, type:'未定位', mapped:false };
+      unmatched.push(miss); allEntries.push(miss); return;
+    }
+    const p = {
+      code,
+      name: r.name,
+      qty: r.qty,
+      type: mapPoint.type || '',
+      lat: Number(mapPoint.lat),
+      lng: Number(mapPoint.lng),
+      mapped: true,
+      top: r.qty === maxQty && maxQty > 0,
+      toneClass: getStockToneClassByScore(r.qty, maxQty, nonZero),
+      ratioPct: maxQty > 0 ? Math.round((r.qty / maxQty) * 100) : 0
+    };
+    points.push(p); allEntries.push(p);
+  });
+
+  allEntries.sort((a,b) => (Number(b.qty)||0) - (Number(a.qty)||0) || String(a.name).localeCompare(String(b.name), 'zh-Hant'));
+  allEntries.forEach((e, idx) => { e.rank = idx + 1; });
+  layoutStockMapBubbles(points);
+  return { points, unmatched, allEntries, maxQty };
+}
+
+function buildStockMapSelectedHtml(item, regionCode) {
+  const safeId = String(item.code).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const data = buildStockMapData(item);
+  let p = data.points.find(x => String(x.code) === String(regionCode));
+  if(!p) p = data.points.find(x => x.top) || data.points[0];
+  if(!p) {
+    return `<div id="stock-map-selected-${safeId}" class="stock-map-selected"><div class="left"><div class="line1"><span class="name">尚無可定位庫存點</span></div><div class="sub">請切回清單查看原始各地庫存資料</div></div><div class="right"><div class="qty">—</div><div class="lbl">庫存量</div></div></div>`;
+  }
+  const relative = data.maxQty ? Math.round((p.qty / data.maxQty) * 100) : 0;
+  return `<div id="stock-map-selected-${safeId}" class="stock-map-selected">
+    <div class="left">
+      <div class="line1"><span class="stock-tone-swatch ${p.toneClass}"></span><span class="name">${escapeHtml(getShortRegionName(p.name))}</span><span class="type-badge">${escapeHtml(p.type || '據點')}</span></div>
+      <div class="sub">排名 #${p.rank || '—'} ・ 相對最高 ${relative}%${p.top ? ' ・ 目前最高庫存' : ''}</div>
+    </div>
+    <div class="right"><div class="qty">${fmtInt(p.qty)}</div><div class="lbl">庫存量</div></div>
+  </div>`;
+}
+
+function buildStockMapLegendHtml() {
+  const classes = ['tone-g6','tone-g5','tone-g4','tone-g3','tone-g2','tone-g1','tone-n0','tone-r1','tone-r2','tone-r3'];
+  return `<div class="stock-map-legendline"><span class="legend-label">高</span>${classes.map(c => `<span class="legend-dot ${c}"></span>`).join('')}<span class="legend-label low">低</span></div>`;
+}
+
+function buildStockMapListHtml(item, data, selectedCode) {
+  const rows = data.allEntries.map(entry => {
+    const isSelected = entry.mapped && String(entry.code) === String(selectedCode);
+    const cls = ['stock-map-list-item'];
+    if(entry.top) cls.push('top');
+    if(isSelected) cls.push('selected');
+    if(!entry.mapped) cls.push('is-unmatched');
+    const swatchClass = entry.mapped ? (entry.toneClass || 'tone-n0') : 'tone-n0';
+    const sub = entry.mapped ? `${escapeHtml(entry.type || '據點')} ・ 相對 ${entry.ratioPct || 0}%` : '未定位資料';
+    const onclick = entry.mapped ? `onclick="selectStockMapPoint('${String(item.code).replace(/'/g, "\\'")}', '${String(entry.code).replace(/'/g, "\\'")}')"` : '';
+    return `<button type="button" class="${cls.join(' ')}" data-code="${entry.mapped ? escapeHtml(entry.code) : ''}" ${onclick}>
+      <span class="stock-map-list-rank">${entry.rank}</span>
+      <span class="stock-tone-swatch ${swatchClass}"></span>
+      <span class="stock-map-list-main"><span class="stock-map-list-name">${escapeHtml(getShortRegionName(entry.name))}</span><span class="stock-map-list-meta">${sub}</span></span>
+      <span class="stock-map-list-qty">${fmtInt(entry.qty)}</span>
+    </button>`;
+  }).join('');
+  return `<div class="stock-map-list-title"><span>全部據點</span><span class="hint">點選列表或地圖節點可互相對應</span></div><div class="stock-map-list">${rows || '<div class="stock-map-list-empty">目前沒有可顯示的各地庫存資料</div>'}</div>`;
+}
+
+function updateStockMapSelectionUI(itemCode) {
+  const item = getInventoryRowByCode(itemCode);
+  if(!item) return;
+  const safeItemId = String(item.code).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const selectedCode = STOCK_MAP_SELECTED[String(item.code)] || '';
+  const shell = document.getElementById('stock-map-shell-' + safeItemId);
+  if(!shell) return;
+  const selectedBox = document.getElementById('stock-map-selected-' + safeItemId);
+  if(selectedBox) selectedBox.outerHTML = buildStockMapSelectedHtml(item, selectedCode);
+  shell.querySelectorAll('.stock-node-group').forEach(g => {
+    const code = g.getAttribute('data-code') || '';
+    g.classList.toggle('active', code === String(selectedCode));
+    const ring = g.querySelector('.stock-node-selected-ring');
+    if(ring) ring.style.display = code === String(selectedCode) ? '' : 'none';
+  });
+  shell.querySelectorAll('.stock-map-list-item[data-code]').forEach(row => {
+    const code = row.getAttribute('data-code') || '';
+    row.classList.toggle('selected', code === String(selectedCode));
+  });
+  const activeRow = shell.querySelector('.stock-map-list-item.selected');
+  if(activeRow && activeRow.scrollIntoView) {
+    activeRow.scrollIntoView({ block:'nearest', behavior:'smooth' });
+  }
+}
+
+function selectStockMapPoint(itemCode, regionCode) {
+  STOCK_MAP_SELECTED[String(itemCode)] = String(regionCode || '');
+  updateStockMapSelectionUI(itemCode);
+}
+
+function buildStockMapHtml(item) {
+  const data = buildStockMapData(item);
+  const safeItem = String(item.code).replace(/'/g, "\\'");
+  const safeItemId = String(item.code).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const defaultSelected = (data.points.find(p => p.top) || data.points[0] || {}).code || '';
+  const selectedCode = STOCK_MAP_SELECTED[String(item.code)] || defaultSelected;
+  if(!STOCK_MAP_SELECTED[String(item.code)] && defaultSelected) STOCK_MAP_SELECTED[String(item.code)] = defaultSelected;
+  const nodesHtml = data.points.map(p => {
+    const selected = String(p.code) === String(selectedCode);
+    const safeCode = String(p.code).replace(/'/g, "\\'");
+    return `<g class="stock-node-group" data-code="${escapeHtml(p.code)}">
+      <circle class="stock-node-selected-ring" cx="${p.x}" cy="${p.y}" r="${(p.r + 5.2).toFixed(1)}" style="display:${selected ? '' : 'none'}"></circle>
+      ${p.top ? `<circle class="stock-node-top-ring" cx="${p.x}" cy="${p.y}" r="${(p.r + 2.9).toFixed(1)}"></circle>` : ''}
+      <circle class="stock-node ${p.toneClass}" cx="${p.x}" cy="${p.y}" r="${p.r.toFixed(1)}"><title>${escapeHtml(p.name)}｜庫存 ${fmtInt(p.qty)}</title></circle>
+      <circle class="stock-node-hit" cx="${p.x}" cy="${p.y}" r="${(p.r + 7.5).toFixed(1)}" onclick="event.stopPropagation(); selectStockMapPoint('${safeItem}', '${safeCode}')"></circle>
+    </g>`;
+  }).join('');
+  const unmatchedSummary = data.unmatched.length ? `<div class="stock-map-callout">未定位：${data.unmatched.map(r => `${escapeHtml(getShortRegionName(r.name))} ${fmtInt(r.qty)}`).join('｜')}</div>` : '';
+  if(!data.points.length) {
+    return `<div id="stock-map-shell-${safeItemId}" class="stock-map-card"><div class="stock-map-titlebar"><div class="stock-map-title">${escapeHtml(item.name)}</div><div class="stock-map-date">${escapeHtml(getReportDateText())}</div></div><div class="stock-map-empty">目前沒有可定位的庫存資料</div>${buildStockMapListHtml(item, data, '')}${unmatchedSummary}</div>`;
+  }
+  return `<div id="stock-map-shell-${safeItemId}" class="stock-map-card">
+    <div class="stock-map-titlebar"><div class="stock-map-title">${escapeHtml(item.name)}</div><div class="stock-map-date">${escapeHtml(getReportDateText())}</div></div>
+    ${buildStockMapLegendHtml()}
+    <div class="stock-map-svg-wrap">
+      <svg class="stock-map-svg" viewBox="0 0 280 430" preserveAspectRatio="xMidYMid meet" role="img" aria-label="台灣各地庫存示意圖">
+        <path class="tw-outline" d="M171 20c13 6 28 23 27 43-1 17-12 34-10 50 2 19 20 42 19 68-1 16-10 30-16 47-7 20-7 38-6 57 1 17-1 32-10 49-11 22-34 42-50 61-10 11-16 21-25 28-9 8-22 8-28-3-5-9-2-20 0-31 2-14 2-28-4-41-6-12-16-23-22-37-8-18-5-35 0-53 7-25 3-43-6-67-9-22-14-49-3-68 8-16 28-28 37-44 7-11 6-24 13-35 8-14 25-23 37-35 10-10 18-24 31-30 6-3 11-4 16-4zM100 242c26 2 54 12 86 10" />
+        ${nodesHtml}
+      </svg>
+    </div>
+    ${buildStockMapSelectedHtml(item, selectedCode)}
+    ${buildStockMapListHtml(item, data, selectedCode)}
+    ${unmatchedSummary}
+  </div>`;
+}
+
 
 function openInfoModal(type, code) {
     const target = String(code).trim();
