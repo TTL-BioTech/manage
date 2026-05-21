@@ -3655,6 +3655,13 @@ table.innerHTML = html;
 }
 
 
+
+function fmtInt(n) {
+    const num = Number(n);
+    if(!isFinite(num)) return '—';
+    return Math.round(num).toLocaleString();
+}
+
 function getStockMapRegionCode(name) {
     const raw = String(name || '').trim();
     if(!raw) return '';
