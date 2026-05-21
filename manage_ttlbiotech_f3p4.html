@@ -372,20 +372,18 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 .stock-map-titlebar { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom: 6px; }
 .stock-map-title { font-size: 12px; font-weight: 900; color:#263238; line-height:1.3; }
 .stock-map-date { font-size: 11px; color:#78909c; font-weight: 800; white-space:nowrap; }
-.stock-map-svg-wrap { position: relative; height: 310px; border-radius: 14px; background: linear-gradient(160deg, rgba(227,242,253,.72), rgba(232,245,233,.62)); overflow:hidden; }
+.stock-map-svg-wrap { position: relative; height: 326px; border-radius: 14px; background: linear-gradient(160deg, rgba(227,242,253,.72), rgba(232,245,233,.62)); overflow:hidden; }
 .stock-map-svg-wrap:before {
   content:""; position:absolute; inset:0; opacity:.22;
   background-image: linear-gradient(rgba(0,77,64,.10) 1px, transparent 1px), linear-gradient(90deg, rgba(0,77,64,.10) 1px, transparent 1px);
   background-size: 28px 28px;
 }
 .stock-map-svg { position: relative; width:100%; height:100%; display:block; }
-.tw-outline { fill: rgba(255,255,255,.72); stroke: rgba(0,77,64,.20); stroke-width: 1.4; filter: drop-shadow(0 10px 18px rgba(0,77,64,.12)); }
-.stock-bubble { fill: rgba(0,137,123,.58); stroke: rgba(255,255,255,.92); stroke-width: 2; cursor:pointer; transition: transform .14s ease, opacity .14s ease; transform-box: fill-box; transform-origin: center; }
+.tw-outline { fill: rgba(255,255,255,.76); stroke: rgba(0,77,64,.20); stroke-width: 1.35; filter: drop-shadow(0 10px 18px rgba(0,77,64,.12)); }
+.stock-bubble { fill: rgba(0,137,123,.56); stroke: rgba(255,255,255,.96); stroke-width: 1.9; cursor:pointer; transition: transform .14s ease, opacity .14s ease; transform-box: fill-box; transform-origin: center; }
 .stock-bubble:hover { transform: scale(1.08); opacity: .95; }
 .stock-bubble.zero { fill: rgba(176,190,197,.65); }
-.stock-bubble.top { stroke: #d32f2f; stroke-width: 3; filter: drop-shadow(0 0 8px rgba(211,47,47,.28)); }
-.stock-bubble-ring { fill: none; stroke: rgba(211,47,47,.35); stroke-width: 2; animation: stockPulse 1.8s ease-in-out infinite; pointer-events:none; }
-@keyframes stockPulse { 0%,100% { opacity:.35; transform:scale(1); } 50% { opacity:.9; transform:scale(1.12); } }
+.stock-bubble.top { stroke: #d32f2f; stroke-width: 3; filter: drop-shadow(0 0 6px rgba(211,47,47,.24)); }
 .stock-map-selected { margin: 8px 0 6px; padding: 8px 10px; border-radius: 12px; background: rgba(255,255,255,.82); border: 1px solid rgba(0,137,123,.12); display:flex; justify-content:space-between; align-items:center; gap:8px; }
 .stock-map-selected .name { font-size:12px; font-weight:900; color:#263238; }
 .stock-map-selected .qty { font-size:15px; font-weight:1000; color:var(--primary); }
@@ -396,7 +394,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 .stock-map-empty { height: 220px; display:flex; align-items:center; justify-content:center; color:#90a4ae; font-weight:900; font-size:13px; border-radius:14px; background:#f5f5f5; }
 @media (max-width: 768px) {
   .stock-map-card { min-height: 405px; padding: 10px 10px 58px; }
-  .stock-map-svg-wrap { height: 345px; }
+  .stock-map-svg-wrap { height: 356px; }
   .stock-map-top3 { padding-right: 0; }
   .stock-map-unmatched { padding-right: 0; }
   .region-view-toggle { right: 12px; bottom: 12px; padding: 9px 12px; }
@@ -3772,52 +3770,154 @@ function buildRegionListHtml(item, mobile=false) {
     }).join("") || '<div class="stock-map-empty">此商品目前無各地庫存資料</div>';
 }
 
-function projectLatLngToTaiwanPoint(lat, lng, w=280, h=430) {
-    const minLng = 120.02, maxLng = 122.05, minLat = 21.85, maxLat = 25.38;
-    const x = ((Number(lng) - minLng) / (maxLng - minLng)) * w;
-    const y = ((maxLat - Number(lat)) / (maxLat - minLat)) * h;
-    return { x: Math.max(16, Math.min(w - 16, x)), y: Math.max(16, Math.min(h - 16, y)) };
+function stockMapClamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
 }
 
-function getStockBubbleRadius(qty, maxQty) {
+function stockMapBoundsAtY(y, w=280, h=430, pad=0) {
+    const top = 32, bottom = 406;
+    const yy = stockMapClamp(Number(y) || top, top, bottom);
+    const t = stockMapClamp((yy - top) / (bottom - top), 0, 1);
+    // Stylized Taiwan safe-zone.  It is intentionally slightly wider than a GIS-accurate outline
+    // because this view is a mobile inventory distribution diagram, not a navigation map.
+    const center = 166 - 56 * t + 8 * Math.sin(Math.PI * (t - 0.10)) - 5 * Math.sin(Math.PI * 2 * t);
+    const widthShape = Math.pow(Math.sin(Math.PI * t), 0.58);
+    const half = 34 + 55 * widthShape - 15 * Math.max(0, t - 0.82) / 0.18;
+    const left = stockMapClamp(center - half + pad, 20, w - 24);
+    const right = stockMapClamp(center + half - pad, 24, w - 20);
+    return { left, right, center, top, bottom };
+}
+
+function constrainPointToTaiwanShape(pt, w=280, h=430) {
+    const margin = (pt.r || 6) + 2.5;
+    pt.y = stockMapClamp(pt.y, 34 + margin, 404 - margin);
+    let b = stockMapBoundsAtY(pt.y, w, h, margin);
+    if(b.right <= b.left) {
+        pt.x = b.center;
+    } else {
+        pt.x = stockMapClamp(pt.x, b.left, b.right);
+    }
+    return pt;
+}
+
+function projectLatLngToTaiwanPoint(lat, lng, w=280, h=430) {
+    const minLng = 120.02, maxLng = 122.05, minLat = 21.85, maxLat = 25.38;
+    const tLat = stockMapClamp((maxLat - Number(lat)) / (maxLat - minLat), 0, 1);
+    const y = 36 + tLat * 364;
+    const b = stockMapBoundsAtY(y, w, h, 0);
+    const lngRatio = stockMapClamp((Number(lng) - minLng) / (maxLng - minLng), 0, 1);
+    // Use the real longitude only as an east/west hint, then compress it into the island silhouette.
+    const x = b.left + lngRatio * (b.right - b.left);
+    return constrainPointToTaiwanShape({ x, y, tx: x, ty: y, r: 6 }, w, h);
+}
+
+function getStockBubbleRadius(qty, visualMaxQty) {
     const isMobile = window.innerWidth <= 768;
-    const minR = isMobile ? 6 : 7;
-    const maxR = isMobile ? 18 : 24;
-    if(!qty || qty <= 0 || !maxQty) return minR;
-    const ratio = Math.sqrt(Math.max(0, Number(qty)) / Math.max(1, Number(maxQty)));
+    const minR = isMobile ? 5.5 : 6.2;
+    const maxR = isMobile ? 14.8 : 18.5;
+    if(!qty || qty <= 0 || !visualMaxQty) return minR;
+    // Log compression keeps the relative feeling while preventing one large location from dominating the map.
+    const ratio = Math.log1p(Math.max(0, Number(qty))) / Math.log1p(Math.max(1, Number(visualMaxQty)));
     return Math.round((minR + ratio * (maxR - minR)) * 10) / 10;
 }
 
 function layoutStockMapBubbles(points, w=280, h=430) {
-    const groups = [];
+    if(!points || !points.length) return points;
+    points.forEach(p => {
+        p.tx = p.tx == null ? p.x : p.tx;
+        p.ty = p.ty == null ? p.y : p.ty;
+        constrainPointToTaiwanShape(p, w, h);
+    });
+
+    // First pass: separate exact/near duplicate sites such as a factory and its attached showroom.
+    const clusters = [];
     points.forEach(pt => {
-        let group = groups.find(g => Math.abs(g.cx - pt.x) < 12 && Math.abs(g.cy - pt.y) < 12);
-        if(!group) { group = { cx: pt.x, cy: pt.y, items: [] }; groups.push(group); }
+        let group = clusters.find(g => Math.hypot(g.tx - pt.tx, g.ty - pt.ty) < 18);
+        if(!group) { group = { tx: pt.tx, ty: pt.ty, items: [] }; clusters.push(group); }
         group.items.push(pt);
     });
-    groups.forEach(g => {
+    clusters.forEach(g => {
         if(g.items.length <= 1) return;
-        const n = g.items.length;
-        const maxR = Math.max(...g.items.map(p => p.r || 8));
-        const ring = Math.max(maxR + 8, 14);
-        const start = n === 2 ? Math.PI : -Math.PI / 2;
-        g.items.forEach((pt, idx) => {
-            const angle = start + (Math.PI * 2 * idx / n);
-            pt.x = g.cx + Math.cos(angle) * ring;
-            pt.y = g.cy + Math.sin(angle) * ring;
+        const ordered = [...g.items].sort((a,b) => (b.qty||0) - (a.qty||0));
+        const maxR = Math.max(...ordered.map(p => p.r || 6));
+        const step = Math.max(13, maxR * 1.55);
+        const patterns = [
+          [0,0], [1,0], [-1,0], [0,1], [0,-1], [1,1], [-1,-1], [1,-1], [-1,1],
+          [2,0], [-2,0], [0,2], [0,-2]
+        ];
+        ordered.forEach((pt, idx) => {
+            const d = patterns[idx] || [Math.cos(idx * 2.4) * (1 + idx/4), Math.sin(idx * 2.4) * (1 + idx/4)];
+            pt.x = g.tx + d[0] * step;
+            pt.y = g.ty + d[1] * step;
+            constrainPointToTaiwanShape(pt, w, h);
         });
     });
-    points.forEach(pt => {
-        const m = (pt.r || 8) + 4;
-        pt.x = Math.max(m, Math.min(w - m, pt.x));
-        pt.y = Math.max(m, Math.min(h - m, pt.y));
-    });
-    return points;
+
+    // Second pass: collision solver.  No bubble should visually overlap, and all bubbles stay inside the silhouette.
+    const gap = 2.6;
+    const sorted = points.sort((a,b) => (b.qty||0) - (a.qty||0));
+    for(let iter=0; iter<170; iter++) {
+        // light anchor force so the diagram still roughly follows latitude/longitude
+        sorted.forEach(p => {
+            p.x += (p.tx - p.x) * 0.015;
+            p.y += (p.ty - p.y) * 0.012;
+            constrainPointToTaiwanShape(p, w, h);
+        });
+        for(let i=0; i<sorted.length; i++) {
+            for(let j=i+1; j<sorted.length; j++) {
+                const a = sorted[i], b = sorted[j];
+                let dx = b.x - a.x;
+                let dy = b.y - a.y;
+                let dist = Math.hypot(dx, dy);
+                const minDist = (a.r || 6) + (b.r || 6) + gap;
+                if(dist < minDist) {
+                    if(dist < 0.01) {
+                        const angle = ((i + 1) * 2.399963 + j) % (Math.PI * 2);
+                        dx = Math.cos(angle); dy = Math.sin(angle); dist = 1;
+                    }
+                    const push = (minDist - dist) / 2;
+                    const ux = dx / dist, uy = dy / dist;
+                    a.x -= ux * push; a.y -= uy * push;
+                    b.x += ux * push; b.y += uy * push;
+                    constrainPointToTaiwanShape(a, w, h);
+                    constrainPointToTaiwanShape(b, w, h);
+                }
+            }
+        }
+    }
+
+    // Final deterministic fallback for stubborn overlaps: shrink only the smaller/non-top bubble slightly.
+    for(let pass=0; pass<6; pass++) {
+        let changed = false;
+        for(let i=0; i<sorted.length; i++) {
+            for(let j=i+1; j<sorted.length; j++) {
+                const a = sorted[i], b = sorted[j];
+                const dist = Math.hypot(b.x - a.x, b.y - a.y);
+                const minDist = (a.r || 6) + (b.r || 6) + 1.4;
+                if(dist < minDist) {
+                    const target = (a.qty||0) <= (b.qty||0) ? a : b;
+                    const floor = window.innerWidth <= 768 ? 4.8 : 5.4;
+                    if((target.r || 6) > floor) {
+                        target.r = Math.max(floor, Math.round((target.r - 0.45) * 10) / 10);
+                        changed = true;
+                    }
+                }
+            }
+        }
+        if(!changed) break;
+    }
+
+    sorted.forEach(p => constrainPointToTaiwanShape(p, w, h));
+    return sorted;
 }
 
 function buildStockMapData(item) {
     const regions = (item && item.regions ? item.regions : []).map(r => ({...r, qty: Number(r.qty)||0}));
     const maxQty = Math.max(...regions.map(r=>r.qty), 0);
+    const sortedQty = regions.map(r=>r.qty).filter(q => q > 0).sort((a,b)=>a-b);
+    const p95 = sortedQty.length ? sortedQty[Math.max(0, Math.ceil(sortedQty.length * 0.95) - 1)] : maxQty;
+    const top2 = sortedQty.length >= 2 ? sortedQty[sortedQty.length - 2] : maxQty;
+    const visualMaxQty = Math.max(1, Math.min(maxQty || 1, Math.max(p95 || 1, top2 || 1)));
     const points = [];
     const unmatched = [];
     regions.forEach(r => {
@@ -3828,7 +3928,7 @@ function buildStockMapData(item) {
             return;
         }
         const p = projectLatLngToTaiwanPoint(mapPoint.lat, mapPoint.lng);
-        const rSize = getStockBubbleRadius(r.qty, maxQty);
+        const rSize = getStockBubbleRadius(r.qty, visualMaxQty);
         points.push({ ...p, r: rSize, code, name: r.name, qty: r.qty, type: mapPoint.type, top: r.qty === maxQty && maxQty > 0 });
     });
     layoutStockMapBubbles(points);
@@ -3860,8 +3960,7 @@ function buildStockMapHtml(item) {
     const selectedCode = STOCK_MAP_SELECTED[String(item.code)] || (data.points.find(p => p.top) || data.points[0] || {}).code || '';
     const bubbleHtml = data.points.map(p => {
         const cls = `stock-bubble ${p.qty <= 0 ? 'zero' : ''} ${p.top ? 'top' : ''}`;
-        const ring = p.top ? `<circle class="stock-bubble-ring" cx="${p.x}" cy="${p.y}" r="${p.r + 5}"></circle>` : '';
-        return `${ring}<circle class="${cls}" cx="${p.x}" cy="${p.y}" r="${p.r}" onclick="event.stopPropagation(); selectStockMapPoint('${safeItem}', '${escapeHtml(p.code)}')"><title>${escapeHtml(p.name)}｜庫存 ${fmtInt(p.qty)}</title></circle>`;
+        return `<circle class="${cls}" cx="${p.x}" cy="${p.y}" r="${p.r}" onclick="event.stopPropagation(); selectStockMapPoint('${safeItem}', '${escapeHtml(p.code)}')"><title>${escapeHtml(p.name)}｜庫存 ${fmtInt(p.qty)}</title></circle>`;
     }).join('');
     const top3 = [...data.points].sort((a,b)=>b.qty-a.qty).slice(0,3).map((p, idx)=>`<span class="stock-map-chip ${idx===0?'top':''}">${idx+1}. ${escapeHtml(getShortRegionName(p.name))} ${fmtInt(p.qty)}</span>`).join('');
     const unmatched = data.unmatched.length ? `<div class="stock-map-unmatched">未定位：${data.unmatched.map(r => `${escapeHtml(getShortRegionName(r.name))} ${fmtInt(r.qty)}`).join('｜')}</div>` : '';
@@ -3870,9 +3969,9 @@ function buildStockMapHtml(item) {
         <div class="stock-map-titlebar"><div class="stock-map-title">${escapeHtml(item.name)}</div><div class="stock-map-date">${escapeHtml(getReportDateText())}</div></div>
         <div class="stock-map-svg-wrap">
           <svg class="stock-map-svg" viewBox="0 0 280 430" preserveAspectRatio="xMidYMid meet" role="img" aria-label="台灣庫存分布示意圖">
-            <path class="tw-outline" d="M180 12 C202 30 209 63 199 91 C192 111 200 127 213 146 C225 165 219 192 204 214 C188 237 184 264 189 292 C194 319 178 344 158 365 C141 383 131 407 114 419 C102 428 90 421 92 405 C95 378 86 360 76 336 C64 309 67 280 83 257 C101 231 101 207 90 182 C79 157 83 134 99 113 C114 93 118 71 119 47 C120 23 151 -2 180 12 Z"/>
-            <path d="M103 114 C127 96 153 86 181 91" stroke="rgba(0,137,123,.10)" stroke-width="7" fill="none" stroke-linecap="round"/>
-            <path d="M84 258 C112 239 143 226 204 214" stroke="rgba(0,137,123,.09)" stroke-width="7" fill="none" stroke-linecap="round"/>
+            <path class="tw-outline" d="M170 31 C199 47 207 86 191 116 C223 153 215 197 180 229 C155 252 166 292 154 325 C145 355 130 383 113 405 C98 424 80 413 86 389 C94 360 72 335 72 302 C72 268 92 246 101 219 C112 188 87 164 95 133 C103 103 126 92 127 65 C128 39 149 20 170 31 Z"/>
+            <path d="M99 122 C124 101 158 88 190 98" stroke="rgba(0,137,123,.10)" stroke-width="7" fill="none" stroke-linecap="round"/>
+            <path d="M85 262 C116 239 150 226 198 216" stroke="rgba(0,137,123,.085)" stroke-width="7" fill="none" stroke-linecap="round"/>
             ${bubbleHtml}
           </svg>
         </div>

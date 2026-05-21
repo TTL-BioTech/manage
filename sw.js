@@ -1,5 +1,5 @@
-// sw.js - TTL Bio-Tech Admin (App Shell only) - v98.14.01-mapfix3
-const CACHE_NAME = 'ttl-admin-shell-v98.14.01-mapfix3';
+// sw.js - TTL Bio-Tech Admin (App Shell only) - v98.14.01-mapfix4
+const CACHE_NAME = 'ttl-admin-shell-v98.14.01-mapfix4';
 const CORE_ASSETS = [
   './',
   './manage_ttlbiotech_f3p4.html',
