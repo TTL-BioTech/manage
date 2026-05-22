@@ -473,7 +473,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 
 
 
-/* --- Stock Map Touch / Focus Zoom UX Override (V98.14.01 mapfix13) --- */
+/* --- Stock Map Touch / Focus Zoom UX Override (V98.14.01 mapfix14) --- */
 .stock-node-hit { fill: transparent; cursor: pointer; }
 .stock-map-svg { touch-action: manipulation; transition: filter .18s ease, opacity .18s ease, transform .18s ease; }
 .stock-map-svg.is-focus-dim { filter: blur(2.2px); opacity: .42; transform: scale(.995); }
@@ -501,6 +501,8 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 .stock-map-focus-title:before{ content:""; width:7px; height:7px; border-radius:999px; background:#2458d3; box-shadow:0 0 0 4px rgba(36,88,211,.10); }
 .stock-map-focus-close{ border:0; background:rgba(96,125,139,.10); color:#607d8b; border-radius:999px; width:24px; height:24px; font-weight:1000; cursor:pointer; }
 .stock-map-focus-svg{ width:100%; height:118px; display:block; border-radius:14px; background:linear-gradient(160deg, rgba(227,242,253,.70), rgba(232,245,233,.50)); border:1px solid rgba(0,137,123,.08); }
+.stock-focus-outline{ fill:rgba(255,255,255,.56); stroke:rgba(0,77,64,.24); stroke-width:1.3; vector-effect:non-scaling-stroke; }
+.stock-focus-map-layer{ pointer-events:none; opacity:.92; }
 .stock-focus-node{ stroke:rgba(255,255,255,.98); stroke-width:2.4; cursor:pointer; }
 .stock-focus-node-hit{ fill:transparent; cursor:pointer; }
 .stock-focus-node-selected-ring{ fill:none; stroke:#2458d3; stroke-width:3.4; opacity:.92; filter:drop-shadow(0 0 5px rgba(36,88,211,.25)); }
@@ -4474,9 +4476,10 @@ function layoutStockMapBubbles(points, w=280, h=430) {
 }
 
 
-/* ===== Stock Map Touch / Focus Zoom UX Override (V98.14.01 mapfix13) ===== */
+/* ===== Stock Map Touch / Focus Zoom UX Override (V98.14.01 mapfix14) ===== */
 const STOCK_MAP_INTERACTION_MODE = 'focusZoom';
 const STOCK_MAP_FOCUS_CLUSTER = {}; // item code -> focused close-point cluster key
+const STOCK_MAP_FOCUS_OUTLINE_D = `M 214.1 14.0 L 191.1 14.0 L 188.6 29.2 L 177.3 30.2 L 171.5 37.5 L 153.8 38.0 L 128.8 63.0 L 120.0 90.0 L 106.7 93.0 L 104.3 105.7 L 81.7 125.8 L 80.7 144.9 L 58.2 165.0 L 49.4 192.0 L 34.2 205.7 L 34.2 253.3 L 26.3 257.2 L 26.3 288.1 L 41.5 298.4 L 42.0 316.1 L 49.4 322.0 L 50.3 333.2 L 57.2 337.7 L 58.2 348.9 L 70.9 351.4 L 96.4 376.9 L 97.4 388.2 L 104.8 394.0 L 105.3 411.7 L 112.6 421.5 L 120.0 421.5 L 120.5 408.3 L 127.8 402.4 L 127.8 370.5 L 135.2 364.6 L 136.2 345.5 L 174.4 309.7 L 175.4 298.4 L 182.2 294.0 L 183.2 282.7 L 190.1 278.3 L 191.1 267.0 L 197.9 262.6 L 198.4 237.1 L 206.3 229.8 L 206.3 205.7 L 214.1 198.4 L 214.1 166.5 L 221.5 160.6 L 222.5 149.3 L 229.3 144.9 L 230.3 133.7 L 237.2 129.2 L 238.2 118.0 L 245.5 112.1 L 245.5 95.9 L 238.2 90.0 L 237.7 80.2 L 245.0 74.3 L 246.0 63.0 L 261.2 52.7 L 261.2 45.4 L 255.8 44.9 L 243.5 30.2 L 224.4 29.2 Z`;
 
 function getStockMapClusterKey(codes) {
   return (codes || []).map(String).sort().join('|');
@@ -4535,6 +4538,12 @@ function closeStockMapFocus(itemCode, ev) {
   updateStockMapShell(key);
 }
 
+function selectStockMapPointFromFocus(itemCode, regionCode, ev) {
+  if(ev) ev.stopPropagation();
+  selectStockMapPoint(itemCode, regionCode);
+  setTimeout(() => updateStockMapSelectionUI(itemCode), 0);
+}
+
 function selectStockMapPointFromMap(itemCode, regionCode, ev) {
   if(ev) ev.stopPropagation();
   const item = getInventoryRowByCode(itemCode);
@@ -4559,6 +4568,7 @@ function selectStockMapPoint(itemCode, regionCode) {
   if(STOCK_MAP_FOCUS_CLUSTER[key]) {
     STOCK_MAP_FOCUS_CLUSTER[key] = '';
     updateStockMapShell(key);
+    setTimeout(() => updateStockMapSelectionUI(key), 0);
     return;
   }
   updateStockMapSelectionUI(itemCode);
@@ -4583,6 +4593,8 @@ function buildStockMapFocusOverlayHtml(item, cluster, selectedCode) {
   const pctY = Math.max(24, Math.min(76, (centerY / 430) * 100));
   const anchorX = w / 2;
   const anchorY = h / 2;
+  const mapTransform = `translate(${(anchorX - centerX * scale).toFixed(2)} ${(anchorY - centerY * scale).toFixed(2)}) scale(${scale.toFixed(4)})`;
+  const focusMapBg = `<g class="stock-focus-map-layer" transform="${mapTransform}"><path class="stock-focus-outline" d="${STOCK_MAP_FOCUS_OUTLINE_D}"></path></g>`;
 
   const guides = items.map(p => {
     const x = anchorX + (Number(p.x || 0) - centerX) * scale;
@@ -4600,7 +4612,7 @@ function buildStockMapFocusOverlayHtml(item, cluster, selectedCode) {
       ${selected ? `<circle class="stock-focus-node-selected-ring" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(r + 6).toFixed(1)}"></circle>` : ''}
       ${p.top ? `<circle class="stock-focus-node-top-ring" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(r + 3).toFixed(1)}"></circle>` : ''}
       <circle class="stock-focus-node ${p.toneClass}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}"><title>${escapeHtml(p.name)}｜庫存 ${fmtInt(p.qty)}</title></circle>
-      <circle class="stock-focus-node-hit" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(r + 13).toFixed(1)}" onclick="selectStockMapPoint('${safeItem}', '${safeCode}')"></circle>
+      <circle class="stock-focus-node-hit" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(r + 13).toFixed(1)}" onclick="selectStockMapPointFromFocus('${safeItem}', '${safeCode}', event)"></circle>
     </g>`;
   }).join('');
 
@@ -4608,6 +4620,7 @@ function buildStockMapFocusOverlayHtml(item, cluster, selectedCode) {
     <div class="stock-map-focus-panel" style="left:clamp(116px, ${pctX.toFixed(1)}%, calc(100% - 116px)); top:clamp(98px, ${pctY.toFixed(1)}%, calc(100% - 98px));" onclick="event.stopPropagation()">
       <div class="stock-map-focus-head"><div class="stock-map-focus-title">局部放大選取</div><button type="button" class="stock-map-focus-close" onclick="closeStockMapFocus('${safeItem}', event)">×</button></div>
       <svg class="stock-map-focus-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="局部放大據點選取">
+        ${focusMapBg}
         <circle class="stock-focus-anchor" cx="${anchorX}" cy="${anchorY}" r="4.5"></circle>
         ${guides}
         ${nodes}
