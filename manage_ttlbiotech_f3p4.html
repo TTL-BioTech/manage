@@ -472,6 +472,24 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 }
 
 
+
+/* --- Stock Map Touch / Cluster UX Override (V98.14.01 mapfix12) --- */
+.stock-node-hit { fill: transparent; cursor: pointer; }
+.stock-node-group.is-expanded .stock-node { transform: scale(1.03); }
+.stock-cluster-link { stroke: rgba(36,88,211,.30); stroke-width: 1.2; stroke-dasharray: 2 3; pointer-events: none; }
+.stock-map-cluster-tip {
+  margin: -2px 0 8px;
+  padding: 7px 9px;
+  border-radius: 12px;
+  background: rgba(36,88,211,.07);
+  border: 1px solid rgba(36,88,211,.12);
+  color: #3b5f9f;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.45;
+}
+.stock-map-svg { touch-action: manipulation; }
+
 /* --- Mobile / Adaptive Styles --- */
 #bottom-nav { display: none; }
 .mobile-card-container { display: flex; flex-direction: column; gap: 8px; padding-bottom: 80px; }
@@ -1493,6 +1511,7 @@ const STOCK_MAP_ALIAS_BY_NAME = new Map(Object.entries({
 }).map(([k,v]) => [normalizeStockMapName(k), v]));
 const STOCK_REGION_VIEW_MODE = {}; // code -> list/map
 const STOCK_MAP_SELECTED = {}; // item code -> region code
+const STOCK_MAP_EXPANDED_CLUSTER = {}; // item code -> expanded close-point cluster key
 const ANALYSIS_MODE_KEY = 'admin_analysis_mode';
 let ANALYSIS_MODE = 'period';
 
@@ -4425,6 +4444,166 @@ function layoutStockMapBubbles(points, w=280, h=430) {
   });
   return points;
 }
+
+
+/* ===== Stock Map Touch / Cluster UX Override (V98.14.01 mapfix12) ===== */
+function getStockMapClusterKey(codes) {
+  return (codes || []).map(String).sort().join('|');
+}
+
+function buildStockMapClusters(points) {
+  const threshold = window.innerWidth <= 768 ? 30 : 26;
+  const pending = [...(points || [])];
+  const clusters = [];
+  while(pending.length) {
+    const seed = pending.shift();
+    const group = [seed];
+    let grew = true;
+    while(grew) {
+      grew = false;
+      for(let i = pending.length - 1; i >= 0; i--) {
+        const cand = pending[i];
+        if(group.some(g => Math.hypot((g.x || 0) - (cand.x || 0), (g.y || 0) - (cand.y || 0)) <= threshold)) {
+          group.push(pending.splice(i, 1)[0]);
+          grew = true;
+        }
+      }
+    }
+    if(group.length > 1) {
+      const key = getStockMapClusterKey(group.map(p => p.code));
+      const cx = group.reduce((sum, p) => sum + Number(p.x || 0), 0) / group.length;
+      const cy = group.reduce((sum, p) => sum + Number(p.y || 0), 0) / group.length;
+      clusters.push({ key, codes: group.map(p => String(p.code)), cx, cy, points: group });
+    }
+  }
+  return clusters;
+}
+
+function getStockMapClusterForCode(code, clusters) {
+  return (clusters || []).find(c => c.codes.includes(String(code || '')));
+}
+
+function applyStockMapExpandedCluster(points, expandedKey, clusters) {
+  const cluster = (clusters || []).find(c => c.key === expandedKey);
+  (points || []).forEach(p => {
+    p.renderX = p.x; p.renderY = p.y; p.spread = false;
+    p.linkX = null; p.linkY = null;
+  });
+  if(!cluster) return null;
+  const items = cluster.points || [];
+  const n = items.length;
+  if(n <= 1) return null;
+  const fanR = Math.min(42, (window.innerWidth <= 768 ? 25 : 23) + n * 2.5);
+  const start = n === 2 ? -Math.PI * 0.08 : -Math.PI * 0.65;
+  const span = n === 2 ? Math.PI * 0.95 : Math.PI * 1.30;
+  items
+    .slice()
+    .sort((a,b) => (Number(a.y||0)-Number(b.y||0)) || (Number(a.x||0)-Number(b.x||0)))
+    .forEach((p, idx) => {
+      const angle = start + (n === 1 ? 0 : (idx / (n - 1)) * span);
+      p.renderX = Math.max(18, Math.min(262, cluster.cx + Math.cos(angle) * fanR));
+      p.renderY = Math.max(18, Math.min(412, cluster.cy + Math.sin(angle) * fanR));
+      p.spread = true;
+      p.linkX = cluster.cx; p.linkY = cluster.cy;
+    });
+  return cluster;
+}
+
+function updateStockMapShell(itemCode) {
+  const item = getInventoryRowByCode(itemCode);
+  if(!item) return;
+  const safeItemId = String(item.code).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const shell = document.getElementById('stock-map-shell-' + safeItemId);
+  if(shell) shell.outerHTML = buildStockMapHtml(item);
+}
+
+function collapseStockMapCluster(itemCode, ev) {
+  if(ev) ev.stopPropagation();
+  const key = String(itemCode);
+  if(!STOCK_MAP_EXPANDED_CLUSTER[key]) return;
+  STOCK_MAP_EXPANDED_CLUSTER[key] = '';
+  updateStockMapShell(key);
+}
+
+function selectStockMapPointFromMap(itemCode, regionCode, ev) {
+  if(ev) ev.stopPropagation();
+  const item = getInventoryRowByCode(itemCode);
+  if(!item) {
+    selectStockMapPoint(itemCode, regionCode);
+    return;
+  }
+  const data = buildStockMapData(item);
+  const clusters = buildStockMapClusters(data.points);
+  const cluster = getStockMapClusterForCode(regionCode, clusters);
+  const current = STOCK_MAP_EXPANDED_CLUSTER[String(itemCode)] || '';
+  if(cluster && cluster.codes.length > 1 && current !== cluster.key) {
+    STOCK_MAP_EXPANDED_CLUSTER[String(itemCode)] = cluster.key;
+    updateStockMapShell(itemCode);
+    return;
+  }
+  selectStockMapPoint(itemCode, regionCode);
+}
+
+function selectStockMapPoint(itemCode, regionCode) {
+  STOCK_MAP_SELECTED[String(itemCode)] = String(regionCode || '');
+  updateStockMapSelectionUI(itemCode);
+}
+
+function buildStockMapHtml(item) {
+  const data = buildStockMapData(item);
+  const safeItem = String(item.code).replace(/'/g, "\\'");
+  const safeItemId = String(item.code).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const defaultSelected = (data.points.find(p => p.top) || data.points[0] || {}).code || '';
+  const selectedCode = STOCK_MAP_SELECTED[String(item.code)] || defaultSelected;
+  if(!STOCK_MAP_SELECTED[String(item.code)] && defaultSelected) STOCK_MAP_SELECTED[String(item.code)] = defaultSelected;
+
+  const clusters = buildStockMapClusters(data.points);
+  const expandedKey = STOCK_MAP_EXPANDED_CLUSTER[String(item.code)] || '';
+  const expandedCluster = applyStockMapExpandedCluster(data.points, expandedKey, clusters);
+  const linksHtml = data.points.filter(p => p.spread).map(p => {
+    const rx = Number(p.renderX == null ? p.x : p.renderX);
+    const ry = Number(p.renderY == null ? p.y : p.renderY);
+    return `<line class="stock-cluster-link" x1="${p.linkX}" y1="${p.linkY}" x2="${rx}" y2="${ry}"></line>`;
+  }).join('');
+
+  const nodesHtml = data.points.map(p => {
+    const selected = String(p.code) === String(selectedCode);
+    const safeCode = String(p.code).replace(/'/g, "\\'");
+    const rx = Number(p.renderX == null ? p.x : p.renderX);
+    const ry = Number(p.renderY == null ? p.y : p.renderY);
+    const hitR = p.spread ? (p.r + 14.5) : (p.r + 12.5);
+    return `<g class="stock-node-group ${p.spread ? 'is-expanded' : ''}" data-code="${escapeHtml(p.code)}">
+      <circle class="stock-node-selected-ring" cx="${rx}" cy="${ry}" r="${(p.r + 5.2).toFixed(1)}" style="display:${selected ? '' : 'none'}"></circle>
+      ${p.top ? `<circle class="stock-node-top-ring" cx="${rx}" cy="${ry}" r="${(p.r + 2.9).toFixed(1)}"></circle>` : ''}
+      <circle class="stock-node ${p.toneClass}" cx="${rx}" cy="${ry}" r="${p.r.toFixed(1)}"><title>${escapeHtml(p.name)}｜庫存 ${fmtInt(p.qty)}</title></circle>
+      <circle class="stock-node-hit" cx="${rx}" cy="${ry}" r="${hitR.toFixed(1)}" onclick="selectStockMapPointFromMap('${safeItem}', '${safeCode}', event)"></circle>
+    </g>`;
+  }).join('');
+
+  const unmatchedSummary = data.unmatched.length ? `<div class="stock-map-callout">未定位：${data.unmatched.map(r => `${escapeHtml(getShortRegionName(r.name))} ${fmtInt(r.qty)}`).join('｜')}</div>` : '';
+  const clusterTip = expandedCluster ? `<div class="stock-map-cluster-tip">此區有 ${expandedCluster.codes.length} 個接近據點，已展開方便點選；點選地圖空白處可收合。</div>` : '';
+
+  if(!data.points.length) {
+    return `<div id="stock-map-shell-${safeItemId}" class="stock-map-card"><div class="stock-map-titlebar"><div class="stock-map-title">${escapeHtml(item.name)}</div><div class="stock-map-date">${escapeHtml(getReportDateText())}</div></div><div class="stock-map-empty">目前沒有可定位的庫存資料</div>${buildStockMapListHtml(item, data, '')}${unmatchedSummary}</div>`;
+  }
+
+  return `<div id="stock-map-shell-${safeItemId}" class="stock-map-card">
+    <div class="stock-map-titlebar"><div class="stock-map-title">${escapeHtml(item.name)}</div><div class="stock-map-date">${escapeHtml(getReportDateText())}</div></div>
+    ${buildStockMapLegendHtml()}
+    <div class="stock-map-svg-wrap">
+      <svg class="stock-map-svg" viewBox="0 0 280 430" preserveAspectRatio="xMidYMid meet" role="img" aria-label="台灣各地庫存示意圖" onclick="collapseStockMapCluster('${safeItem}', event)">
+        <path class="tw-outline" d="M 214.1 14.0 L 191.1 14.0 L 188.6 29.2 L 177.3 30.2 L 171.5 37.5 L 153.8 38.0 L 128.8 63.0 L 120.0 90.0 L 106.7 93.0 L 104.3 105.7 L 81.7 125.8 L 80.7 144.9 L 58.2 165.0 L 49.4 192.0 L 34.2 205.7 L 34.2 253.3 L 26.3 257.2 L 26.3 288.1 L 41.5 298.4 L 42.0 316.1 L 49.4 322.0 L 50.3 333.2 L 57.2 337.7 L 58.2 348.9 L 70.9 351.4 L 96.4 376.9 L 97.4 388.2 L 104.8 394.0 L 105.3 411.7 L 112.6 421.5 L 120.0 421.5 L 120.5 408.3 L 127.8 402.4 L 127.8 370.5 L 135.2 364.6 L 136.2 345.5 L 174.4 309.7 L 175.4 298.4 L 182.2 294.0 L 183.2 282.7 L 190.1 278.3 L 191.1 267.0 L 197.9 262.6 L 198.4 237.1 L 206.3 229.8 L 206.3 205.7 L 214.1 198.4 L 214.1 166.5 L 221.5 160.6 L 222.5 149.3 L 229.3 144.9 L 230.3 133.7 L 237.2 129.2 L 238.2 118.0 L 245.5 112.1 L 245.5 95.9 L 238.2 90.0 L 237.7 80.2 L 245.0 74.3 L 246.0 63.0 L 261.2 52.7 L 261.2 45.4 L 255.8 44.9 L 243.5 30.2 L 224.4 29.2 Z" />
+        ${linksHtml}
+        ${nodesHtml}
+      </svg>
+    </div>
+    ${buildStockMapSelectedHtml(item, selectedCode)}
+    ${clusterTip}
+    ${buildStockMapListHtml(item, data, selectedCode)}
+    ${unmatchedSummary}
+  </div>`;
+}
+
 
 function openInfoModal(type, code) {
     const target = String(code).trim();
