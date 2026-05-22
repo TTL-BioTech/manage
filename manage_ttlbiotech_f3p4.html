@@ -401,7 +401,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 }
 
 
-/* --- Stock Map Redesign Override (V98.14.01 mapfix5) --- */
+/* --- Stock Map Redesign Override (V98.14.01 mapfix6) --- */
 .stock-map-card{
   position:relative; overflow:hidden; border:1px solid rgba(0,137,123,.12); border-radius:18px;
   background: radial-gradient(circle at 14% 12%, rgba(0,137,123,.09), transparent 22%), linear-gradient(180deg, #fbfffe 0%, #f3faf8 100%);
@@ -4041,7 +4041,7 @@ function buildStockMapHtml(item) {
         <div class="stock-map-titlebar"><div class="stock-map-title">${escapeHtml(item.name)}</div><div class="stock-map-date">${escapeHtml(getReportDateText())}</div></div>
         <div class="stock-map-svg-wrap">
           <svg class="stock-map-svg" viewBox="0 0 280 430" preserveAspectRatio="xMidYMid meet" role="img" aria-label="台灣庫存分布示意圖">
-            <path class="tw-outline" d="M170 31 C199 47 207 86 191 116 C223 153 215 197 180 229 C155 252 166 292 154 325 C145 355 130 383 113 405 C98 424 80 413 86 389 C94 360 72 335 72 302 C72 268 92 246 101 219 C112 188 87 164 95 133 C103 103 126 92 127 65 C128 39 149 20 170 31 Z"/>
+            <path class="tw-outline" d="M166 18 C193 28 215 59 216 92 C217 122 202 134 206 158 C212 194 224 216 205 252 C190 281 191 311 179 340 C166 370 152 394 132 417 C120 430 101 426 94 407 C85 386 92 364 85 342 C75 314 55 298 55 266 C55 235 74 215 82 188 C93 156 77 130 88 101 C98 72 119 64 125 43 C132 24 150 13 166 18 Z"/>
             <path d="M99 122 C124 101 158 88 190 98" stroke="rgba(0,137,123,.10)" stroke-width="7" fill="none" stroke-linecap="round"/>
             <path d="M85 262 C116 239 150 226 198 216" stroke="rgba(0,137,123,.085)" stroke-width="7" fill="none" stroke-linecap="round"/>
             ${bubbleHtml}
@@ -4068,7 +4068,7 @@ function getShortRegionName(name) {
 }
 
 
-/* ===== Stock Map Redesign Override (V98.14.01 mapfix5) ===== */
+/* ===== Stock Map Redesign Override (V98.14.01 mapfix6) ===== */
 function getStockFixedNodeRadius() {
   return window.innerWidth <= 768 ? 10.2 : 10.8;
 }
@@ -4329,7 +4329,7 @@ function buildStockMapHtml(item) {
     ${buildStockMapLegendHtml()}
     <div class="stock-map-svg-wrap">
       <svg class="stock-map-svg" viewBox="0 0 280 430" preserveAspectRatio="xMidYMid meet" role="img" aria-label="台灣各地庫存示意圖">
-        <path class="tw-outline" d="M171 20c13 6 28 23 27 43-1 17-12 34-10 50 2 19 20 42 19 68-1 16-10 30-16 47-7 20-7 38-6 57 1 17-1 32-10 49-11 22-34 42-50 61-10 11-16 21-25 28-9 8-22 8-28-3-5-9-2-20 0-31 2-14 2-28-4-41-6-12-16-23-22-37-8-18-5-35 0-53 7-25 3-43-6-67-9-22-14-49-3-68 8-16 28-28 37-44 7-11 6-24 13-35 8-14 25-23 37-35 10-10 18-24 31-30 6-3 11-4 16-4zM100 242c26 2 54 12 86 10" />
+        <path class="tw-outline" d="M166 18 C193 28 215 59 216 92 C217 122 202 134 206 158 C212 194 224 216 205 252 C190 281 191 311 179 340 C166 370 152 394 132 417 C120 430 101 426 94 407 C85 386 92 364 85 342 C75 314 55 298 55 266 C55 235 74 215 82 188 C93 156 77 130 88 101 C98 72 119 64 125 43 C132 24 150 13 166 18 Z" />
         ${nodesHtml}
       </svg>
     </div>
@@ -4339,6 +4339,90 @@ function buildStockMapHtml(item) {
   </div>`;
 }
 
+
+
+/* ===== Stock Map Composition Override (V98.14.01 mapfix6) =====
+   Cognitive-geography layout: Taiwan-shape-first, region-slot positioning.
+   LatLong remains a fallback only; primary point placement follows Taiwanese geographic intuition.
+*/
+const STOCK_MAP_SLOT_BY_CODE = {
+  // North / Taipei-Taoyuan-Hsinchu belt
+  '1170': {x:146, y:46, zone:'北部'},
+  '1211': {x:163, y:59, zone:'北部'},
+  '1040': {x:128, y:63, zone:'北部'},
+  '1150': {x:109, y:78, zone:'北部'},
+  '1200': {x:126, y:88, zone:'北部'},
+  '1201': {x:145, y:95, zone:'北部'},
+  // Yilan must sit visually on the north-east side
+  '1280': {x:184, y:90, zone:'東北'},
+  '1281': {x:199, y:104, zone:'東北'},
+  // Zhunan cluster
+  '1340': {x:100, y:122, zone:'北中'},
+  '1341': {x:119, y:130, zone:'北中'},
+  '1710': {x:103, y:146, zone:'北中'},
+
+  // Central west / Nantou-Puli
+  '1060': {x:108, y:170, zone:'中部'},
+  '1240': {x:91, y:190, zone:'中部'},
+  '1241': {x:109, y:202, zone:'中部'},
+  '1300': {x:128, y:190, zone:'中部'},
+  '1301': {x:146, y:203, zone:'中部'},
+  '1320': {x:126, y:238, zone:'中部'},
+  '1321': {x:145, y:249, zone:'中部'},
+  '1290': {x:165, y:226, zone:'中部'},
+  '1291': {x:181, y:239, zone:'中部'},
+
+  // East coast belt
+  '1130': {x:198, y:174, zone:'東部'},
+  '1270': {x:205, y:218, zone:'東部'},
+  '1271': {x:211, y:238, zone:'東部'},
+
+  // South-west chain
+  '1080': {x:103, y:266, zone:'南部'},
+  '1250': {x:122, y:282, zone:'南部'},
+  '1251': {x:140, y:292, zone:'南部'},
+  '1330': {x:128, y:314, zone:'南部'},
+  '1331': {x:146, y:325, zone:'南部'},
+  '1310': {x:111, y:334, zone:'南部'},
+  '1311': {x:130, y:345, zone:'南部'},
+  '1090': {x:101, y:357, zone:'南部'},
+  '1100': {x:119, y:379, zone:'南部'},
+  '1260': {x:138, y:390, zone:'南部'},
+  '1261': {x:155, y:400, zone:'南部'}
+};
+
+function getStockMapSlot(code) {
+  return STOCK_MAP_SLOT_BY_CODE[String(code || '').trim()] || null;
+}
+
+function layoutStockMapBubbles(points, w=280, h=430) {
+  if(!points || !points.length) return points;
+  const radius = getStockFixedNodeRadius();
+  points.forEach((p) => {
+    const slot = getStockMapSlot(p.code);
+    if(slot) {
+      p.r = radius;
+      p.x = slot.x;
+      p.y = slot.y;
+      p.tx = slot.x;
+      p.ty = slot.y;
+      p.ax = slot.x;
+      p.ay = slot.y;
+      p.mapZone = slot.zone || '';
+      return;
+    }
+    // Fallback: only for future unmapped codes.
+    const proj = projectLatLngToTaiwanPoint(p.lat, p.lng, w, h);
+    p.r = radius;
+    p.x = proj.x;
+    p.y = proj.y;
+    p.tx = proj.x;
+    p.ty = proj.y;
+    p.ax = proj.x;
+    p.ay = proj.y;
+  });
+  return points;
+}
 
 function openInfoModal(type, code) {
     const target = String(code).trim();
