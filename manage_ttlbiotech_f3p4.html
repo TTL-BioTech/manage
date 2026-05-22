@@ -473,22 +473,50 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 
 
 
-/* --- Stock Map Touch / Cluster UX Override (V98.14.01 mapfix12) --- */
+/* --- Stock Map Touch / Focus Zoom UX Override (V98.14.01 mapfix13) --- */
 .stock-node-hit { fill: transparent; cursor: pointer; }
-.stock-node-group.is-expanded .stock-node { transform: scale(1.03); }
-.stock-cluster-link { stroke: rgba(36,88,211,.30); stroke-width: 1.2; stroke-dasharray: 2 3; pointer-events: none; }
-.stock-map-cluster-tip {
-  margin: -2px 0 8px;
-  padding: 7px 9px;
-  border-radius: 12px;
-  background: rgba(36,88,211,.07);
-  border: 1px solid rgba(36,88,211,.12);
-  color: #3b5f9f;
-  font-size: 11px;
-  font-weight: 900;
-  line-height: 1.45;
+.stock-map-svg { touch-action: manipulation; transition: filter .18s ease, opacity .18s ease, transform .18s ease; }
+.stock-map-svg.is-focus-dim { filter: blur(2.2px); opacity: .42; transform: scale(.995); }
+.stock-map-focus-overlay{
+  position:absolute; inset:0; z-index:5;
+  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.16), rgba(38,50,56,.14));
+  backdrop-filter: blur(1px);
+  -webkit-backdrop-filter: blur(1px);
+  cursor:pointer;
 }
-.stock-map-svg { touch-action: manipulation; }
+.stock-map-focus-panel{
+  position:absolute; width:226px; max-width:calc(100% - 24px); height:188px;
+  transform:translate(-50%, -50%);
+  border-radius:20px; background:rgba(255,255,255,.96);
+  border:1px solid rgba(36,88,211,.18);
+  box-shadow:0 18px 38px rgba(38,50,56,.20), 0 4px 12px rgba(36,88,211,.08);
+  padding:9px 10px 8px; cursor:default;
+}
+.stock-map-focus-panel:before{
+  content:""; position:absolute; inset:-7px; border-radius:25px;
+  border:1px solid rgba(36,88,211,.12); pointer-events:none;
+}
+.stock-map-focus-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px; }
+.stock-map-focus-title{ font-size:11px; font-weight:1000; color:#2458d3; display:flex; align-items:center; gap:5px; }
+.stock-map-focus-title:before{ content:""; width:7px; height:7px; border-radius:999px; background:#2458d3; box-shadow:0 0 0 4px rgba(36,88,211,.10); }
+.stock-map-focus-close{ border:0; background:rgba(96,125,139,.10); color:#607d8b; border-radius:999px; width:24px; height:24px; font-weight:1000; cursor:pointer; }
+.stock-map-focus-svg{ width:100%; height:118px; display:block; border-radius:14px; background:linear-gradient(160deg, rgba(227,242,253,.70), rgba(232,245,233,.50)); border:1px solid rgba(0,137,123,.08); }
+.stock-focus-node{ stroke:rgba(255,255,255,.98); stroke-width:2.4; cursor:pointer; }
+.stock-focus-node-hit{ fill:transparent; cursor:pointer; }
+.stock-focus-node-selected-ring{ fill:none; stroke:#2458d3; stroke-width:3.4; opacity:.92; filter:drop-shadow(0 0 5px rgba(36,88,211,.25)); }
+.stock-focus-node-top-ring{ fill:none; stroke:#d32f2f; stroke-width:2.6; opacity:.95; }
+.stock-focus-anchor{ fill:rgba(36,88,211,.16); stroke:rgba(36,88,211,.22); stroke-width:1; }
+.stock-focus-guide{ stroke:rgba(36,88,211,.22); stroke-width:1; stroke-dasharray:2 3; }
+.stock-map-focus-hint{ margin-top:5px; font-size:10px; line-height:1.35; color:#607d8b; font-weight:900; text-align:center; }
+.stock-map-focus-tip{
+  margin: -2px 0 8px; padding: 7px 9px; border-radius: 12px;
+  background: rgba(36,88,211,.07); border: 1px solid rgba(36,88,211,.12);
+  color: #3b5f9f; font-size: 11px; font-weight: 900; line-height: 1.45;
+}
+@media (max-width: 768px){
+  .stock-map-focus-panel{ width:232px; height:194px; padding:9px 10px 8px; }
+  .stock-map-focus-svg{ height:124px; }
+}
 
 /* --- Mobile / Adaptive Styles --- */
 #bottom-nav { display: none; }
@@ -4446,13 +4474,16 @@ function layoutStockMapBubbles(points, w=280, h=430) {
 }
 
 
-/* ===== Stock Map Touch / Cluster UX Override (V98.14.01 mapfix12) ===== */
+/* ===== Stock Map Touch / Focus Zoom UX Override (V98.14.01 mapfix13) ===== */
+const STOCK_MAP_INTERACTION_MODE = 'focusZoom';
+const STOCK_MAP_FOCUS_CLUSTER = {}; // item code -> focused close-point cluster key
+
 function getStockMapClusterKey(codes) {
   return (codes || []).map(String).sort().join('|');
 }
 
 function buildStockMapClusters(points) {
-  const threshold = window.innerWidth <= 768 ? 30 : 26;
+  const threshold = window.innerWidth <= 768 ? 31 : 27;
   const pending = [...(points || [])];
   const clusters = [];
   while(pending.length) {
@@ -4483,30 +4514,9 @@ function getStockMapClusterForCode(code, clusters) {
   return (clusters || []).find(c => c.codes.includes(String(code || '')));
 }
 
-function applyStockMapExpandedCluster(points, expandedKey, clusters) {
-  const cluster = (clusters || []).find(c => c.key === expandedKey);
-  (points || []).forEach(p => {
-    p.renderX = p.x; p.renderY = p.y; p.spread = false;
-    p.linkX = null; p.linkY = null;
-  });
-  if(!cluster) return null;
-  const items = cluster.points || [];
-  const n = items.length;
-  if(n <= 1) return null;
-  const fanR = Math.min(42, (window.innerWidth <= 768 ? 25 : 23) + n * 2.5);
-  const start = n === 2 ? -Math.PI * 0.08 : -Math.PI * 0.65;
-  const span = n === 2 ? Math.PI * 0.95 : Math.PI * 1.30;
-  items
-    .slice()
-    .sort((a,b) => (Number(a.y||0)-Number(b.y||0)) || (Number(a.x||0)-Number(b.x||0)))
-    .forEach((p, idx) => {
-      const angle = start + (n === 1 ? 0 : (idx / (n - 1)) * span);
-      p.renderX = Math.max(18, Math.min(262, cluster.cx + Math.cos(angle) * fanR));
-      p.renderY = Math.max(18, Math.min(412, cluster.cy + Math.sin(angle) * fanR));
-      p.spread = true;
-      p.linkX = cluster.cx; p.linkY = cluster.cy;
-    });
-  return cluster;
+function getStockMapFocusCluster(itemCode, clusters) {
+  const key = STOCK_MAP_FOCUS_CLUSTER[String(itemCode)] || '';
+  return (clusters || []).find(c => c.key === key) || null;
 }
 
 function updateStockMapShell(itemCode) {
@@ -4517,11 +4527,11 @@ function updateStockMapShell(itemCode) {
   if(shell) shell.outerHTML = buildStockMapHtml(item);
 }
 
-function collapseStockMapCluster(itemCode, ev) {
+function closeStockMapFocus(itemCode, ev) {
   if(ev) ev.stopPropagation();
   const key = String(itemCode);
-  if(!STOCK_MAP_EXPANDED_CLUSTER[key]) return;
-  STOCK_MAP_EXPANDED_CLUSTER[key] = '';
+  if(!STOCK_MAP_FOCUS_CLUSTER[key]) return;
+  STOCK_MAP_FOCUS_CLUSTER[key] = '';
   updateStockMapShell(key);
 }
 
@@ -4535,9 +4545,8 @@ function selectStockMapPointFromMap(itemCode, regionCode, ev) {
   const data = buildStockMapData(item);
   const clusters = buildStockMapClusters(data.points);
   const cluster = getStockMapClusterForCode(regionCode, clusters);
-  const current = STOCK_MAP_EXPANDED_CLUSTER[String(itemCode)] || '';
-  if(cluster && cluster.codes.length > 1 && current !== cluster.key) {
-    STOCK_MAP_EXPANDED_CLUSTER[String(itemCode)] = cluster.key;
+  if(cluster && cluster.codes.length > 1) {
+    STOCK_MAP_FOCUS_CLUSTER[String(itemCode)] = cluster.key;
     updateStockMapShell(itemCode);
     return;
   }
@@ -4545,43 +4554,95 @@ function selectStockMapPointFromMap(itemCode, regionCode, ev) {
 }
 
 function selectStockMapPoint(itemCode, regionCode) {
-  STOCK_MAP_SELECTED[String(itemCode)] = String(regionCode || '');
+  const key = String(itemCode);
+  STOCK_MAP_SELECTED[key] = String(regionCode || '');
+  if(STOCK_MAP_FOCUS_CLUSTER[key]) {
+    STOCK_MAP_FOCUS_CLUSTER[key] = '';
+    updateStockMapShell(key);
+    return;
+  }
   updateStockMapSelectionUI(itemCode);
+}
+
+function buildStockMapFocusOverlayHtml(item, cluster, selectedCode) {
+  if(!cluster || !cluster.points || cluster.points.length <= 1) return '';
+  const safeItem = String(item.code).replace(/'/g, "\'");
+  const items = cluster.points.slice().sort((a,b) => (Number(a.y||0)-Number(b.y||0)) || (Number(a.x||0)-Number(b.x||0)));
+  const minX = Math.min(...items.map(p => Number(p.x || 0)));
+  const maxX = Math.max(...items.map(p => Number(p.x || 0)));
+  const minY = Math.min(...items.map(p => Number(p.y || 0)));
+  const maxY = Math.max(...items.map(p => Number(p.y || 0)));
+  const w = 220, h = 118, pad = 28;
+  const rangeX = Math.max(1, maxX - minX);
+  const rangeY = Math.max(1, maxY - minY);
+  const fitScale = Math.min((w - pad * 2) / rangeX, (h - pad * 2) / rangeY);
+  const scale = Math.max(2.6, Math.min(5.6, fitScale));
+  const centerX = Number(cluster.cx || 0);
+  const centerY = Number(cluster.cy || 0);
+  const pctX = Math.max(28, Math.min(72, (centerX / 280) * 100));
+  const pctY = Math.max(24, Math.min(76, (centerY / 430) * 100));
+  const anchorX = w / 2;
+  const anchorY = h / 2;
+
+  const guides = items.map(p => {
+    const x = anchorX + (Number(p.x || 0) - centerX) * scale;
+    const y = anchorY + (Number(p.y || 0) - centerY) * scale;
+    return `<line class="stock-focus-guide" x1="${anchorX.toFixed(1)}" y1="${anchorY.toFixed(1)}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"></line>`;
+  }).join('');
+
+  const nodes = items.map(p => {
+    const safeCode = String(p.code).replace(/'/g, "\'");
+    const x = anchorX + (Number(p.x || 0) - centerX) * scale;
+    const y = anchorY + (Number(p.y || 0) - centerY) * scale;
+    const selected = String(p.code) === String(selectedCode);
+    const r = Math.max(8.8, Number(p.r || getStockFixedNodeRadius()) + 1.6);
+    return `<g data-code="${escapeHtml(p.code)}">
+      ${selected ? `<circle class="stock-focus-node-selected-ring" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(r + 6).toFixed(1)}"></circle>` : ''}
+      ${p.top ? `<circle class="stock-focus-node-top-ring" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(r + 3).toFixed(1)}"></circle>` : ''}
+      <circle class="stock-focus-node ${p.toneClass}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}"><title>${escapeHtml(p.name)}｜庫存 ${fmtInt(p.qty)}</title></circle>
+      <circle class="stock-focus-node-hit" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(r + 13).toFixed(1)}" onclick="selectStockMapPoint('${safeItem}', '${safeCode}')"></circle>
+    </g>`;
+  }).join('');
+
+  return `<div class="stock-map-focus-overlay" onclick="closeStockMapFocus('${safeItem}', event)">
+    <div class="stock-map-focus-panel" style="left:clamp(116px, ${pctX.toFixed(1)}%, calc(100% - 116px)); top:clamp(98px, ${pctY.toFixed(1)}%, calc(100% - 98px));" onclick="event.stopPropagation()">
+      <div class="stock-map-focus-head"><div class="stock-map-focus-title">局部放大選取</div><button type="button" class="stock-map-focus-close" onclick="closeStockMapFocus('${safeItem}', event)">×</button></div>
+      <svg class="stock-map-focus-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="局部放大據點選取">
+        <circle class="stock-focus-anchor" cx="${anchorX}" cy="${anchorY}" r="4.5"></circle>
+        ${guides}
+        ${nodes}
+      </svg>
+      <div class="stock-map-focus-hint">此區有 ${items.length} 個接近據點，請在放大區點選；點空白處可恢復。</div>
+    </div>
+  </div>`;
 }
 
 function buildStockMapHtml(item) {
   const data = buildStockMapData(item);
-  const safeItem = String(item.code).replace(/'/g, "\\'");
+  const safeItem = String(item.code).replace(/'/g, "\'");
   const safeItemId = String(item.code).replace(/[^a-zA-Z0-9_-]/g, '_');
   const defaultSelected = (data.points.find(p => p.top) || data.points[0] || {}).code || '';
   const selectedCode = STOCK_MAP_SELECTED[String(item.code)] || defaultSelected;
   if(!STOCK_MAP_SELECTED[String(item.code)] && defaultSelected) STOCK_MAP_SELECTED[String(item.code)] = defaultSelected;
 
   const clusters = buildStockMapClusters(data.points);
-  const expandedKey = STOCK_MAP_EXPANDED_CLUSTER[String(item.code)] || '';
-  const expandedCluster = applyStockMapExpandedCluster(data.points, expandedKey, clusters);
-  const linksHtml = data.points.filter(p => p.spread).map(p => {
-    const rx = Number(p.renderX == null ? p.x : p.renderX);
-    const ry = Number(p.renderY == null ? p.y : p.renderY);
-    return `<line class="stock-cluster-link" x1="${p.linkX}" y1="${p.linkY}" x2="${rx}" y2="${ry}"></line>`;
-  }).join('');
+  const focusCluster = getStockMapFocusCluster(item.code, clusters);
 
   const nodesHtml = data.points.map(p => {
     const selected = String(p.code) === String(selectedCode);
-    const safeCode = String(p.code).replace(/'/g, "\\'");
-    const rx = Number(p.renderX == null ? p.x : p.renderX);
-    const ry = Number(p.renderY == null ? p.y : p.renderY);
-    const hitR = p.spread ? (p.r + 14.5) : (p.r + 12.5);
-    return `<g class="stock-node-group ${p.spread ? 'is-expanded' : ''}" data-code="${escapeHtml(p.code)}">
-      <circle class="stock-node-selected-ring" cx="${rx}" cy="${ry}" r="${(p.r + 5.2).toFixed(1)}" style="display:${selected ? '' : 'none'}"></circle>
-      ${p.top ? `<circle class="stock-node-top-ring" cx="${rx}" cy="${ry}" r="${(p.r + 2.9).toFixed(1)}"></circle>` : ''}
-      <circle class="stock-node ${p.toneClass}" cx="${rx}" cy="${ry}" r="${p.r.toFixed(1)}"><title>${escapeHtml(p.name)}｜庫存 ${fmtInt(p.qty)}</title></circle>
-      <circle class="stock-node-hit" cx="${rx}" cy="${ry}" r="${hitR.toFixed(1)}" onclick="selectStockMapPointFromMap('${safeItem}', '${safeCode}', event)"></circle>
+    const safeCode = String(p.code).replace(/'/g, "\'");
+    const hitR = (p.r + 15.5);
+    return `<g class="stock-node-group" data-code="${escapeHtml(p.code)}">
+      <circle class="stock-node-selected-ring" cx="${p.x}" cy="${p.y}" r="${(p.r + 5.2).toFixed(1)}" style="display:${selected ? '' : 'none'}"></circle>
+      ${p.top ? `<circle class="stock-node-top-ring" cx="${p.x}" cy="${p.y}" r="${(p.r + 2.9).toFixed(1)}"></circle>` : ''}
+      <circle class="stock-node ${p.toneClass}" cx="${p.x}" cy="${p.y}" r="${p.r.toFixed(1)}"><title>${escapeHtml(p.name)}｜庫存 ${fmtInt(p.qty)}</title></circle>
+      <circle class="stock-node-hit" cx="${p.x}" cy="${p.y}" r="${hitR.toFixed(1)}" onclick="selectStockMapPointFromMap('${safeItem}', '${safeCode}', event)"></circle>
     </g>`;
   }).join('');
 
   const unmatchedSummary = data.unmatched.length ? `<div class="stock-map-callout">未定位：${data.unmatched.map(r => `${escapeHtml(getShortRegionName(r.name))} ${fmtInt(r.qty)}`).join('｜')}</div>` : '';
-  const clusterTip = expandedCluster ? `<div class="stock-map-cluster-tip">此區有 ${expandedCluster.codes.length} 個接近據點，已展開方便點選；點選地圖空白處可收合。</div>` : '';
+  const focusTip = focusCluster ? `<div class="stock-map-focus-tip">已啟動局部放大，背景地圖暫時淡化；請在放大區選取正確據點。</div>` : '';
+  const focusOverlay = buildStockMapFocusOverlayHtml(item, focusCluster, selectedCode);
 
   if(!data.points.length) {
     return `<div id="stock-map-shell-${safeItemId}" class="stock-map-card"><div class="stock-map-titlebar"><div class="stock-map-title">${escapeHtml(item.name)}</div><div class="stock-map-date">${escapeHtml(getReportDateText())}</div></div><div class="stock-map-empty">目前沒有可定位的庫存資料</div>${buildStockMapListHtml(item, data, '')}${unmatchedSummary}</div>`;
@@ -4591,19 +4652,18 @@ function buildStockMapHtml(item) {
     <div class="stock-map-titlebar"><div class="stock-map-title">${escapeHtml(item.name)}</div><div class="stock-map-date">${escapeHtml(getReportDateText())}</div></div>
     ${buildStockMapLegendHtml()}
     <div class="stock-map-svg-wrap">
-      <svg class="stock-map-svg" viewBox="0 0 280 430" preserveAspectRatio="xMidYMid meet" role="img" aria-label="台灣各地庫存示意圖" onclick="collapseStockMapCluster('${safeItem}', event)">
+      <svg class="stock-map-svg ${focusCluster ? 'is-focus-dim' : ''}" viewBox="0 0 280 430" preserveAspectRatio="xMidYMid meet" role="img" aria-label="台灣各地庫存示意圖" onclick="closeStockMapFocus('${safeItem}', event)">
         <path class="tw-outline" d="M 214.1 14.0 L 191.1 14.0 L 188.6 29.2 L 177.3 30.2 L 171.5 37.5 L 153.8 38.0 L 128.8 63.0 L 120.0 90.0 L 106.7 93.0 L 104.3 105.7 L 81.7 125.8 L 80.7 144.9 L 58.2 165.0 L 49.4 192.0 L 34.2 205.7 L 34.2 253.3 L 26.3 257.2 L 26.3 288.1 L 41.5 298.4 L 42.0 316.1 L 49.4 322.0 L 50.3 333.2 L 57.2 337.7 L 58.2 348.9 L 70.9 351.4 L 96.4 376.9 L 97.4 388.2 L 104.8 394.0 L 105.3 411.7 L 112.6 421.5 L 120.0 421.5 L 120.5 408.3 L 127.8 402.4 L 127.8 370.5 L 135.2 364.6 L 136.2 345.5 L 174.4 309.7 L 175.4 298.4 L 182.2 294.0 L 183.2 282.7 L 190.1 278.3 L 191.1 267.0 L 197.9 262.6 L 198.4 237.1 L 206.3 229.8 L 206.3 205.7 L 214.1 198.4 L 214.1 166.5 L 221.5 160.6 L 222.5 149.3 L 229.3 144.9 L 230.3 133.7 L 237.2 129.2 L 238.2 118.0 L 245.5 112.1 L 245.5 95.9 L 238.2 90.0 L 237.7 80.2 L 245.0 74.3 L 246.0 63.0 L 261.2 52.7 L 261.2 45.4 L 255.8 44.9 L 243.5 30.2 L 224.4 29.2 Z" />
-        ${linksHtml}
         ${nodesHtml}
       </svg>
+      ${focusOverlay}
     </div>
     ${buildStockMapSelectedHtml(item, selectedCode)}
-    ${clusterTip}
+    ${focusTip}
     ${buildStockMapListHtml(item, data, selectedCode)}
     ${unmatchedSummary}
   </div>`;
 }
-
 
 function openInfoModal(type, code) {
     const target = String(code).trim();
