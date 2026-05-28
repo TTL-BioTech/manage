@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>TTL BIO-TECH 戰情中心 V98.14.01</title>
+<title>TTL BIO-TECH 戰情中心 V98.14.02</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00897b">
   <meta name="apple-mobile-web-app-title" content="TTL-Bio Dashboard">
@@ -928,7 +928,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 
 <div id="loading-mask">
   <div class="spinner"></div>
-  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.14.01)...</div>
+  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.14.02)...</div>
 </div>
 
 <div id="restoreWidget" onclick="toggleRestoreList(event)">
@@ -1180,7 +1180,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
                 <button id="oarInterval" class="oar-pill" onclick="cycleOrdersAutoInterval()" title="切換自動更新間隔" aria-label="切換自動更新間隔">120s</button>
               </div>
               <div id="mobile-sort-btn" onclick="openSortSheet()"><span class="material-icons-round" style="font-size:20px">sort</span></div>
-              <span id="mobile-del-all" class="material-icons-round" style="display:none; color:#d32f2f; margin-left:10px; cursor:pointer;" onclick="deleteAllOrders()">delete_sweep</span>
+              <span id="mobile-del-all" class="material-icons-round" style="display:none; color:#d32f2f; margin-left:10px; cursor:pointer;" onclick="deleteAllOrders()" title="刪除全部訂單（需二次密碼）" aria-label="刪除全部訂單">delete_sweep</span>
             </div>
           </div>
         </div>
@@ -1414,7 +1414,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = '98.14.01';
+const APP_VERSION = '98.14.02';
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -3774,7 +3774,7 @@ if(SORT.key) {
                 ${getSortHeader('paymentStatus','付款')}
                 ${getSortHeader('pickupStatus','領貨')}
                 ${getSortHeader('total','總金額')}
-                <th>操作 <span class="material-icons-round" style="color:#d32f2f;cursor:pointer;font-size:20px;vertical-align:middle;margin-left:8px;" onclick="deleteAllOrders()" title="刪除全部">delete_sweep</span></th>
+                <th>操作 <span class="material-icons-round" style="color:#d32f2f;cursor:pointer;font-size:20px;vertical-align:middle;margin-left:8px;" onclick="deleteAllOrders()" title="刪除全部訂單（需二次密碼）">delete_sweep</span></th>
             </tr></thead><tbody>`;
 
             list.forEach(o => { 
@@ -4910,33 +4910,72 @@ function deleteOrderAction() {
     callGAS({ action: "delete_order", order_id: currentEditOrder.id }, "刪除成功", true); 
 }
 
-// 批量刪除
-async function deleteAllOrders() {
-    const q = document.getElementById('tableSearch').value.trim();
-    let targetOrders = q ? DATA.orders.filter(o => o.id.includes(q) || o.name.includes(q)) : DATA.orders;
-    
-    if(targetOrders.length === 0) { alert("目前列表無訂單可刪除"); return; }
-    
-    if(!confirm(`⚠️ 危險操作：您即將刪除目前列表中的 ${targetOrders.length} 筆訂單！\n\n此動作無法復原。`)) return; 
-    if(!confirm(`再次確認：真的要刪除這 ${targetOrders.length} 筆訂單嗎？`)) return;
-    
-    showLoading(true, "正在批量刪除訂單，請勿關閉視窗...");
-    
-    let successCount = 0;
-    for(const order of targetOrders) { 
-        try { 
-            await fetch(GAS_URL + "?token=" + encodeURIComponent(ADMIN_TOKEN), { 
-                method: "POST", 
-                headers: { "Content-Type": "application/x-www-form-urlencoded" }, 
-                body: "payload=" + encodeURIComponent(JSON.stringify({ action: "delete_order", order_id: order.id })) 
-            }); 
-            successCount++; 
-        } catch(e) { console.error(e); } 
+// 刪除全部訂單（V98.14.02 / GAS V5.1.2）
+// 由 GAS 端一次批次清空 Orders / Order_Items / Gifts，避免前端逐筆 delete_order 造成長時間等待。
+// 注意：刪除密碼只送到 GAS 驗證，前端不保存、不比對、不內建明文密碼。
+async function deleteAllOrders(isRetry=false) {
+    if(!isAuthed()){
+        __pendingPrivAction = { type: 'deleteAllOrders' };
+        openAuthModal();
+        return;
     }
-    
-    showLoading(false); 
-    alert(`批量刪除完成！共刪除 ${successCount} 筆訂單。`); 
-    init(); // 重新整理
+
+    const totalOrders = (DATA && Array.isArray(DATA.orders)) ? DATA.orders.length : 0;
+    if(totalOrders === 0) { alert("目前沒有可刪除的訂單"); return; }
+
+    const qEl = document.getElementById('tableSearch');
+    const q = qEl ? String(qEl.value || '').trim() : '';
+    const searchNote = q ? `\n\n提醒：目前有搜尋條件，但本按鈕會刪除 SHEET 內全部訂單，不只刪除搜尋結果。` : "";
+
+    if(!confirm(`⚠️ 危險操作：您即將刪除 SHEET 內全部訂單。
+目前前端載入筆數：${totalOrders} 筆。
+
+此動作無法復原。${searchNote}`)) return;
+    if(!confirm(`再次確認：真的要刪除全部訂單嗎？
+
+刪除後會同步清空訂單明細、贈品明細與備貨/宅配/自取彙整分頁。`)) return;
+
+    const pass = prompt('請輸入「刪除全部」密碼：');
+    if(pass === null) return;
+    const confirmPassword = String(pass || '').trim();
+    if(!confirmPassword) { alert('未輸入刪除密碼，已取消。'); return; }
+
+    showLoading(true, "正在刪除全部訂單，請勿關閉視窗...");
+
+    try {
+        const res = await fetch(GAS_URL + "?token=" + encodeURIComponent(ADMIN_TOKEN), {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: "payload=" + encodeURIComponent(JSON.stringify({
+                action: "delete_all_orders",
+                confirm_password: confirmPassword
+            })),
+            cache: "no-store"
+        });
+        const j = await res.json();
+        showLoading(false);
+
+        if(j && j.ok) {
+            const deleted = Number(j.deleted_orders || 0);
+            alert(`刪除全部完成！共刪除 ${deleted} 筆訂單。`);
+            DATA.orders = [];
+            try { await init(); } catch(e) { console.error(e); }
+            return;
+        }
+
+        const errMsg = (j && j.error) ? String(j.error) : '刪除失敗';
+        if(!isRetry && /token|unauthorized/i.test(errMsg)) {
+            clearSavedToken();
+            __pendingPrivAction = { type: 'deleteAllOrders' };
+            openAuthModal('登入逾期，請重新登入後再輸入刪除密碼');
+            return;
+        }
+        alert('刪除失敗：' + errMsg);
+    } catch(e) {
+        showLoading(false);
+        alert('連線錯誤，刪除全部未完成。');
+        console.error(e);
+    }
 }
 
 // GAS API 呼叫核心
@@ -5566,6 +5605,7 @@ async function submitAuth(){
         const p = __pendingPrivAction; __pendingPrivAction = null;
         // retry after login
         if(p.type === 'callGAS'){ callGAS(p.payload, p.msg, p.isDelete, true); }
+        else if(p.type === 'deleteAllOrders'){ try{ deleteAllOrders(true); }catch(e){} }
         else if(p.type === 'settingsReload'){ try{ ensureSettingsLoaded(true); }catch(e){} }
         else if(p.type === 'gotoTab'){ try{ switchTab(p.tab, true, true); }catch(e){} }
       }
