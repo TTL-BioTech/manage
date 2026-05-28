@@ -1414,7 +1414,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = '98.14.02';
+const APP_VERSION = '98.14.03';
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -1427,6 +1427,7 @@ let PRODUCT_BUNDLE_MAP = new Map(); // 用來查表補全資訊
 const ORDERS_CSV_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIGbs4rMOfytnlajoBKcTZ5a0HhozeDAb2HMmsHsfUzfzrE0_O_y0QhhXD_SQjiwjoDKV_BJWoJwyp/pub?output=csv";
 const DEFAULT_ORDERS_GID = "590994475"; // 固定 Orders 工作表 gid（一次性修正，避免隱性風險）
 const ORDERS_GID_STORAGE_KEY = 'ttlbiotech_orders_gid_v1';
+const ORDERS_CLEAR_AFTER_KEY = 'ttlbiotech_orders_clear_after_ms_v1'; // V98.14.03: hide stale published CSV rows after bulk delete
 function getOrdersGid() {
   try {
     const qs = new URLSearchParams(window.location.search);
@@ -2230,6 +2231,66 @@ function processProducts(rows) {
 
 
 // 請替換 manage_ttlbiotech_f3p4.html 中的 processOrders 函式
+
+// V98.14.03: After bulk delete, Google Published CSV can temporarily return stale Orders rows.
+// Store a local clear marker and ignore rows whose order timestamp/order id is older than that marker.
+function getOrdersClearAfterMs_() {
+  try {
+    const v = Number(localStorage.getItem(ORDERS_CLEAR_AFTER_KEY) || 0);
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  } catch(e) { return 0; }
+}
+
+function setOrdersClearAfterMarker_() {
+  // Slightly backdate the marker to avoid second-level timestamp edge cases.
+  const ms = Date.now() - 1000;
+  try { localStorage.setItem(ORDERS_CLEAR_AFTER_KEY, String(ms)); } catch(e) {}
+  return ms;
+}
+
+function parseOrderDateMsFromId_(orderId) {
+  const m = String(orderId || '').match(/^O(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/);
+  if(!m) return 0;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6]));
+  const ms = d.getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function parseSheetTimestampMs_(value) {
+  const s = String(value || '').trim();
+  if(!s) return 0;
+  const m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+  if(!m) return 0;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6] || 0));
+  const ms = d.getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+function shouldKeepOrderRowAfterClear_(row, IDX, clearAfterMs) {
+  if(!clearAfterMs) return true;
+  const idMs = parseOrderDateMsFromId_(row[IDX.id]);
+  const tsMs = parseSheetTimestampMs_(row[IDX.time]);
+  const ms = idMs || tsMs;
+  // If a stale CSV row cannot be dated, hide it after a bulk delete instead of risking ghost orders.
+  if(!ms) return false;
+  return ms >= clearAfterMs;
+}
+
+function resetOrdersUiAfterBulkDelete_(deletedCount) {
+  setOrdersClearAfterMarker_();
+  DATA.orders = [];
+  DATA.soldMap = {};
+  try { closeModal(true); } catch(e) {}
+  try { updateDashboard(); } catch(e) {}
+  try { renderCurrentTable(); } catch(e) {}
+  try { updateRestoreWidget(); updateRestoreWidgetVisibility(CURRENT_TAB); } catch(e) {}
+  try { updateLastSyncText(); } catch(e) {}
+  const lu = document.getElementById('lastUpdate');
+  if(lu) lu.innerText = "更新: " + new Date().toLocaleTimeString();
+  showLoading(false);
+  alert(`刪除全部完成！共刪除 ${deletedCount || 0} 筆訂單。\n\n畫面已立即清空；若 Google Sheets 發布 CSV 暫時回傳舊資料，系統會自動遮蔽刪除前的舊訂單。`);
+}
+
 function processOrders(rows) {
   DATA.soldMap = {};
   if(!rows || rows.length === 0) { DATA.orders = []; return; }
@@ -2247,7 +2308,11 @@ function processOrders(rows) {
     receiptEmail: idxOf(['Receipt Email'],12), pickupToken: idxOf(['Pickup Token'],13), pickupCode: idxOf(['Pickup Code'],14), emailStatus: idxOf(['Email Status'],15),
     paymentStatus: idxOf(['Payment Status'],17), paidAt: idxOf(['Paid At'],18), pickupStatus: idxOf(['Pickup Status'],20), pickedAt: idxOf(['Picked At'],21)
   };
-  DATA.orders = rows.slice(1).filter(r => String(r[IDX.id] || '').trim()).map(r => {
+  const clearAfterMs = getOrdersClearAfterMs_();
+  const sourceRows = rows.slice(1)
+    .filter(r => String(r[IDX.id] || '').trim())
+    .filter(r => shouldKeepOrderRowAfterClear_(r, IDX, clearAfterMs));
+  DATA.orders = sourceRows.map(r => {
     const safe = (i) => (i >= 0 && r[i] !== undefined && r[i] !== null) ? String(r[i]) : "";
     let rawJson = null;
     try {
@@ -4910,7 +4975,7 @@ function deleteOrderAction() {
     callGAS({ action: "delete_order", order_id: currentEditOrder.id }, "刪除成功", true); 
 }
 
-// 刪除全部訂單（V98.14.02 / GAS V5.1.2）
+// 刪除全部訂單（V98.14.03 / GAS V5.1.2+）
 // 由 GAS 端一次批次清空 Orders / Order_Items / Gifts，避免前端逐筆 delete_order 造成長時間等待。
 // 注意：刪除密碼只送到 GAS 驗證，前端不保存、不比對、不內建明文密碼。
 async function deleteAllOrders(isRetry=false) {
@@ -4957,9 +5022,9 @@ async function deleteAllOrders(isRetry=false) {
 
         if(j && j.ok) {
             const deleted = Number(j.deleted_orders || 0);
-            alert(`刪除全部完成！共刪除 ${deleted} 筆訂單。`);
-            DATA.orders = [];
-            try { await init(); } catch(e) { console.error(e); }
+            // Do not immediately call init()/CSV reload here. Google Published CSV may lag and return stale Orders rows.
+            // Treat the GAS delete response as source of truth, clear UI now, and filter out pre-delete stale rows later.
+            resetOrdersUiAfterBulkDelete_(deleted);
             return;
         }
 
