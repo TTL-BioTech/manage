@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>TTL BIO-TECH 戰情中心 V98.14.02</title>
+<title>TTL BIO-TECH 戰情中心 V98.14.04</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00897b">
   <meta name="apple-mobile-web-app-title" content="TTL-Bio Dashboard">
@@ -928,7 +928,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 
 <div id="loading-mask">
   <div class="spinner"></div>
-  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.14.02)...</div>
+  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.14.04)...</div>
 </div>
 
 <div id="restoreWidget" onclick="toggleRestoreList(event)">
@@ -976,7 +976,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
     </div>
     <div id="lastSyncText">最後更新：--</div>
     <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
-      <button id="refreshNowBtn" style="border:1px solid #cfd8dc;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;">立即更新</button>
+      <button id="refreshNowBtn" style="border:1px solid #cfd8dc;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;">同步最新資料</button>
       <button id="logoutBtn" style="border:1px solid #cfd8dc;background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;">登入權限</button>
     </div>
   </div>
@@ -1027,7 +1027,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
           <div id="reportDateBadge" class="report-date-badge">資料日期：--</div>
           <div class="update-time" id="lastUpdate">--</div>
         </div>
-        <button id="refreshNowBtnMobile" class="icon-btn" title="重新整理" aria-label="重新整理">
+        <button id="refreshNowBtnMobile" class="icon-btn" title="同步最新資料" aria-label="同步最新資料">
             <span class="material-icons-round">refresh</span>
         </button>
         <button id="logoutBtnMobile" class="icon-btn" title="登入權限" aria-label="登入權限">
@@ -1414,7 +1414,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = '98.14.03';
+const APP_VERSION = '98.14.04';
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -5672,6 +5672,7 @@ async function submitAuth(){
         if(p.type === 'callGAS'){ callGAS(p.payload, p.msg, p.isDelete, true); }
         else if(p.type === 'deleteAllOrders'){ try{ deleteAllOrders(true); }catch(e){} }
         else if(p.type === 'settingsReload'){ try{ ensureSettingsLoaded(true); }catch(e){} }
+        else if(p.type === 'syncLatestData'){ try{ syncLatestData(false, true); }catch(e){} }
         else if(p.type === 'gotoTab'){ try{ switchTab(p.tab, true, true); }catch(e){} }
       }
       return;
@@ -5744,8 +5745,45 @@ function stopAuthBackgroundVerify(){
   if(AUTH_BG_VERIFY_TIMER){ clearInterval(AUTH_BG_VERIFY_TIMER); AUTH_BG_VERIFY_TIMER = null; }
 }
 
+async function syncLatestData(silent = false, isRetry = false) {
+  if(!isAuthed()){
+    __pendingPrivAction = { type: 'syncLatestData' };
+    openAuthModal('請先登入後同步最新資料');
+    return;
+  }
+
+  try{
+    showLoading(true, '正在重建統計...');
+    const res = await gasFetchTokenNoPrompt({ action: 'manual_rebuild_stats' });
+    if(!(res && res.ok)){
+      showLoading(false);
+      const errMsg = (res && res.error) ? String(res.error) : '未知錯誤';
+      if(!isRetry && /token|unauthorized|expired/i.test(errMsg)){
+        clearSavedToken();
+        ADMIN_TOKEN = null;
+        updateAuthUI();
+        __pendingPrivAction = { type: 'syncLatestData' };
+        openAuthModal('權限已失效，請重新登入後同步最新資料');
+        return;
+      }
+      alert('統計重建失敗：' + errMsg);
+      return;
+    }
+
+    showLoading(true, '正在更新後台資料...');
+    await refreshAllData(true);
+    showLoading(false);
+    updateLastSyncText();
+    if(!silent) showToast('同步完成');
+  }catch(e){
+    showLoading(false);
+    console.error('syncLatestData failed', e);
+    if(!silent) alert('同步最新資料失敗，請確認網路或 GAS 部署版本。');
+  }
+}
+
 function bindMetaButtons() {
-  const doRefresh = () => refreshAllData(false);
+  const doRefresh = () => syncLatestData(false);
 
   const doAuthToggle = () => {
     if(isAuthed()){
