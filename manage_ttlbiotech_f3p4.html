@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>TTL BIO-TECH 戰情中心 V98.14.05</title>
+<title>TTL BIO-TECH 戰情中心 V98.14.06</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00897b">
   <meta name="apple-mobile-web-app-title" content="TTL-Bio Dashboard">
@@ -943,7 +943,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 
 <div id="loading-mask">
   <div class="spinner"></div>
-  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.14.05)...</div>
+  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.14.06)...</div>
 </div>
 
 <div id="restoreWidget" onclick="toggleRestoreList(event)">
@@ -1429,7 +1429,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = '98.14.05';
+const APP_VERSION = '98.14.06';
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -2213,36 +2213,35 @@ function processProducts(rows) {
             const code = idxCode !== -1 ? (r[idxCode] || "").toString().trim() : "";
             const pnRaw = idxPName !== -1 ? (r[idxPName] || "").toString().trim() : "";
 
-            // 1) Prefer explicit bundle_summary if available
+            // V98.14.06: fixed bundles must prefer spec_n + spec_n_qty so quantities are preserved.
+            // bundle_summary can be only a display summary, so it is now the fallback rather than source of truth.
             let summary = "";
-            if(idxBundleSummary !== -1) summary = (r[idxBundleSummary] || "").toString().trim();
+            const bundleItems = [];
+            orderedNs.forEach(n => {
+                const g = groups.get(n) || {};
+                let name = g.nameIdx !== undefined ? (r[g.nameIdx] || "").toString().trim() : "";
+                if(!name) return;
 
-            if(summary) {
-                // If bundle_summary contains codes separated by |, translate into names when possible
-                summary = summary.split('|').map(s => translateToken(s)).filter(Boolean).join('|');
-            }
+                // translate codes to product names when possible
+                name = translateToken(name);
 
-            // 2) Otherwise, build from spec columns (support qty)
-            if(!summary) {
-                const bundleItems = [];
-                orderedNs.forEach(n => {
-                    const g = groups.get(n) || {};
-                    let name = g.nameIdx !== undefined ? (r[g.nameIdx] || "").toString().trim() : "";
-                    if(!name) return;
+                let q = 1;
+                if(g.qtyIdx !== undefined) {
+                    const qRaw = (r[g.qtyIdx] || "").toString().trim();
+                    const qNum = parseInt(qRaw, 10);
+                    if(!isNaN(qNum) && qNum > 0) q = qNum;
+                }
+                // Repeat by qty so split('|') + summarizeParts_ can count correctly
+                for(let i=0; i<q; i++) bundleItems.push(name);
+            });
+            if(bundleItems.length > 0) summary = bundleItems.join('|');
 
-                    // translate codes to product names when possible
-                    name = translateToken(name);
-
-                    let q = 1;
-                    if(g.qtyIdx !== undefined) {
-                        const qRaw = (r[g.qtyIdx] || "").toString().trim();
-                        const qNum = parseInt(qRaw, 10);
-                        if(!isNaN(qNum) && qNum > 0) q = qNum;
-                    }
-                    // Repeat by qty so existing split('|') logic can count correctly
-                    for(let i=0; i<q; i++) bundleItems.push(name);
-                });
-                if(bundleItems.length > 0) summary = bundleItems.join('|');
+            if(!summary && idxBundleSummary !== -1) {
+                summary = (r[idxBundleSummary] || "").toString().trim();
+                if(summary) {
+                    // If bundle_summary contains codes separated by |, translate into names when possible
+                    summary = summary.split('|').map(s => translateToken(s)).filter(Boolean).join('|');
+                }
             }
 
             if(!summary) return;
@@ -4912,19 +4911,41 @@ function summarizeParts_(parts, qtyMultiplier){
   return order.map(name => ({ name, qty: counts.get(name) }));
 }
 
-function getOrderLineBundleSummary_(obj){
+function isSelfSelectOrderLine_(obj){
+  if(!obj) return false;
+  const text = [obj.spec, obj.product_name, obj.bundle_summary, obj.Content]
+    .map(v => String(v || ''))
+    .join(' ');
+  return /(自選|任選|買一送一|買二送一|買[一二三四五六七八九十0-9]+送[一二三四五六七八九十0-9]+)/.test(text);
+}
+
+function getMappedProductBundleSummary_(obj){
   if(!obj) return '';
-  const selfSelect = bundleSummaryFromSelfSelectSpec_(obj.spec || '');
-  if(selfSelect) return selfSelect;
-
-  const existing = String(obj.bundle_summary || obj.Content || '').trim();
-  if(existing) return existing;
-
   const code = String(obj.product_code || '').trim();
   if(code && PRODUCT_BUNDLE_MAP.has(code)) return PRODUCT_BUNDLE_MAP.get(code);
 
   const nk = normalizeStr(String(obj.product_name || '').trim().replace(/[()（）【】\[\]「」『』《》<>]/g, ''));
   if(nk && PRODUCT_BUNDLE_MAP.has(nk)) return PRODUCT_BUNDLE_MAP.get(nk);
+  return '';
+}
+
+function getOrderLineBundleSummary_(obj){
+  if(!obj) return '';
+
+  // 自選 / 任選 / 買一送一類：必須優先吃訂單實際選擇，不能被產品表「可選清單」覆蓋。
+  const selfSelectFromSpec = bundleSummaryFromSelfSelectSpec_(obj.spec || '');
+  if(selfSelectFromSpec) return selfSelectFromSpec;
+
+  const existing = String(obj.bundle_summary || obj.Content || '').trim();
+  if(isSelfSelectOrderLine_(obj) && existing) return existing;
+
+  // 固定產品組：產品表的 spec_n / spec_n_qty 才是正確組成與數量。
+  // 若 Raw JSON 只有摘要，例如三件組只帶一個品名，這裡必須用產品表覆蓋顯示。
+  const mapped = getMappedProductBundleSummary_(obj);
+  if(mapped) return mapped;
+
+  // 舊資料 / 特殊資料 fallback。
+  if(existing) return existing;
   return '';
 }
 
@@ -5008,7 +5029,7 @@ function openOrderModal(oid, mode) {
   document.getElementById('e-total').innerText = (order.raw.totals && order.raw.totals.pay) ? order.raw.totals.pay.toLocaleString() : "0";
   renderOrderWorkflowPanel(order);
 
-  // 2. 渲染購買明細（V98.14.05：依 Orders.Raw JSON 展開產品組 / 任選系列 / 買一送一內容）
+  // 2. 渲染購買明細（V98.14.06：依訂單實際選擇與產品表組成展開明細數量）
   document.getElementById('e-items').innerHTML = buildOrderDetailsHtml_(order.raw);
 
   // 3. 設定模式並開啟
@@ -5050,25 +5071,9 @@ function saveOrderAction() {
     const normKey = (s) => normalizeStr((s || "").toString().trim().replace(/[()（）【】\[\]「」『』《》<>]/g, ''));
 
     const fillBundleSummary = (obj) => {
-        if(!obj || obj.bundle_summary) return;
-
-        const selfSelectSummary = bundleSummaryFromSelfSelectSpec_(obj.spec || '');
-        if(selfSelectSummary){
-            obj.bundle_summary = selfSelectSummary;
-            return;
-        }
-
-        const code = (obj.product_code || "").toString().trim();
-        if(code && PRODUCT_BUNDLE_MAP.has(code)) {
-            obj.bundle_summary = PRODUCT_BUNDLE_MAP.get(code);
-            return;
-        }
-
-        // Legacy: some old payloads may miss code; fallback by normalized product_name
-        const nk = normKey(obj.product_name || "");
-        if(nk && PRODUCT_BUNDLE_MAP.has(nk)) {
-            obj.bundle_summary = PRODUCT_BUNDLE_MAP.get(nk);
-        }
+        if(!obj) return;
+        const resolved = getOrderLineBundleSummary_(obj);
+        if(resolved) obj.bundle_summary = resolved;
     };
 
     if(currentEditOrder.raw.items) currentEditOrder.raw.items.forEach(fillBundleSummary);
@@ -5439,38 +5444,34 @@ function showItemStats() {
     list.forEach(o => {
         if(!o.raw) return;
 
-        // 統計商品 (含組合包拆解)
+        // 統計商品 (V98.14.06：共用訂單詳情的組成解析，避免三件組 / 自選組數量誤差)
         if(o.raw.items) {
             o.raw.items.forEach(it => {
-                const qty = it.qty || 0;
-                // 檢查是否有 bundle_summary (從 GAS V3.1 寫入的 JSON)
-                if(it.bundle_summary) {
-                    const subs = it.bundle_summary.split('|');
-                    subs.forEach(sub => {
-                        const name = sub.trim();
-                        itemStats[name] = (itemStats[name] || 0) + qty;
+                const parts = splitBundleSummaryParts_(getOrderLineBundleSummary_(it));
+                if(parts.length) {
+                    summarizeParts_(parts, it.qty || 1).forEach(x => {
+                        itemStats[x.name] = (itemStats[x.name] || 0) + x.qty;
                     });
                 } else {
-                    itemStats[it.product_name] = (itemStats[it.product_name] || 0) + qty;
+                    const name = cleanDetailName_(it.product_name);
+                    const qty = Math.max(1, Number(it.qty || 1));
+                    if(name) itemStats[name] = (itemStats[name] || 0) + qty;
                 }
             });
         }
 
-        // 統計贈品 (含組合包拆解 - Step 2 前台已加入 bundle_summary)
+        // 統計贈品 (V98.14.06：同樣支援產品表組成與數量)
         if(o.raw.gifts) {
             o.raw.gifts.forEach(g => {
-                const qty = g.qty || 0;
-                // [Mod] 支援贈品拆解
-                if(g.bundle_summary) {
-                    const subs = g.bundle_summary.split('|');
-                    subs.forEach(sub => {
-                        const name = sub.trim();
-                        giftStats[name] = (giftStats[name] || 0) + qty;
+                const parts = splitBundleSummaryParts_(getOrderLineBundleSummary_(g));
+                if(parts.length) {
+                    summarizeParts_(parts, g.qty || 1).forEach(x => {
+                        giftStats[x.name] = (giftStats[x.name] || 0) + x.qty;
                     });
                 } else {
-                    // 移除 [贈品] 前綴以保持乾淨
-                    let name = g.product_name.replace(/^\[贈品\]\s*/, '').replace(/^\[Gift\]\s*/i, '');
-                    giftStats[name] = (giftStats[name] || 0) + qty;
+                    const name = cleanDetailName_(g.product_name);
+                    const qty = Math.max(1, Number(g.qty || 1));
+                    if(name) giftStats[name] = (giftStats[name] || 0) + qty;
                 }
             });
         }

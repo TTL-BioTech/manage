@@ -1,5 +1,5 @@
-// sw.js - TTL Bio-Tech Admin (App Shell only) - v98.14.05-sync-retry-order-detail-lines
-const CACHE_NAME = 'ttl-admin-shell-v98.14.05-sync-retry-order-detail-lines';
+// sw.js - TTL Bio-Tech Admin (App Shell only) - v98.14.06-order-detail-bundle-qty-fix
+const CACHE_NAME = 'ttl-admin-shell-v98.14.06-order-detail-bundle-qty-fix';
 const CORE_ASSETS = [
   './',
   './manage_ttlbiotech_f3p4.html',
