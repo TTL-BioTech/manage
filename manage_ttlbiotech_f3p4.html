@@ -333,6 +333,21 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 .m-input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 15px; }
 .m-input:disabled { background: #f5f5f5; cursor: not-allowed; color: #555; }
 
+.order-detail-section { margin-bottom: 10px; }
+.order-detail-section-title { font-size: 12px; font-weight: 900; color: #607d8b; margin: 10px 0 6px; letter-spacing: .04em; }
+.order-detail-card { padding: 9px 10px; border: 1px solid #eef2f3; border-radius: 10px; background: #fff; margin-bottom: 8px; font-size: 14px; }
+.order-detail-card.gift { border-color: #b2dfdb; background: #f8fffd; }
+.order-detail-main { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.order-detail-name { font-weight: 900; color: #263238; line-height: 1.35; }
+.order-detail-qty { font-weight: 900; color: #37474f; white-space: nowrap; }
+.order-detail-meta { margin-top: 4px; font-size: 12px; color: #78909c; line-height: 1.45; }
+.order-detail-breakdown { margin-top: 7px; padding: 7px 9px; border-radius: 8px; background: #f5f7f8; color: #37474f; font-size: 12.5px; line-height: 1.55; }
+.order-detail-breakdown-title { color: #607d8b; font-weight: 900; margin-bottom: 2px; }
+.order-detail-breakdown-line { display: flex; justify-content: space-between; gap: 8px; border-top: 1px dashed #e0e7e9; padding-top: 3px; margin-top: 3px; }
+.order-detail-breakdown-line:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+.order-detail-line-name { overflow-wrap: anywhere; }
+.order-detail-line-qty { font-weight: 900; white-space: nowrap; }
+
 /* Sort & Filter Sheets */
 #sortSheet, #filterSheet { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top-left-radius: 16px; border-top-right-radius: 16px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 2600; padding: 20px; transform: translateY(100%); transition: transform 0.3s; display: none; max-height:80vh; overflow-y:auto; }
 #sortSheet.open, #filterSheet.open { transform: translateY(0); display: block; }
@@ -1414,7 +1429,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = '98.14.04';
+const APP_VERSION = '98.14.05';
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -1461,6 +1476,8 @@ const INVENTORY_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ7k1Dqiu
 const SALES_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQj5QLrtaWikGcLNwMawbjiN8ZQDgFzW1RV7UECFgLzECWj16I2ugE_B6tzzLICCynsk1L6lAuJfccS/pub?gid=93142219&single=true&output=csv";
 
 let DATA = { orders: [], inventory: [], sales: [], soldMap: {}, salesMap: new Map(), reportDateRaw: '', reportDateText: '' };
+let __ordersRefreshInflight = false; // V98.14.05: avoid overlapping 60s/120s order refresh
+let __syncLatestInflight = false;   // V98.14.05: avoid double-click sync collisions
 
 // ===== Stock Map Points (V98.14.01) =====
 // Built-in coordinate table: code + LatLong only. Display names come from inventory headers.
@@ -2056,9 +2073,13 @@ async function refreshHealthPanel(){
 
 
 
+function sleepMs_(ms){ return new Promise(resolve => setTimeout(resolve, ms)); }
+
 async function fetchCSV(url, opts = {}) {
   const cacheBust = opts.cacheBust !== false;
   const healthKey = opts.healthKey || null;
+  const retries = Number.isFinite(Number(opts.retries)) ? Math.max(0, Number(opts.retries)) : 1;
+  const retryDelayMs = Number.isFinite(Number(opts.retryDelayMs)) ? Math.max(0, Number(opts.retryDelayMs)) : 650;
   let finalUrl = url;
   try {
     const u = new URL(url);
@@ -2068,18 +2089,28 @@ async function fetchCSV(url, opts = {}) {
     // keep original url
   }
 
-  const t0 = performance.now();
-  try{
-    const res = await fetch(finalUrl, { cache: 'no-store' });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const txt = await res.text();
-    const data = Papa.parse(txt, { header: false }).data;
-    recordHealth(healthKey, true, `ok ${(performance.now()-t0).toFixed(0)}ms`);
-    return data;
-  } catch(err){
-    recordHealth(healthKey, false, err && err.message ? err.message : String(err));
-    throw err;
+  let lastErr = null;
+  for(let attempt = 0; attempt <= retries; attempt++){
+    const t0 = performance.now();
+    try{
+      const res = await fetch(finalUrl, { cache: 'no-store' });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const txt = await res.text();
+      const data = Papa.parse(txt, { header: false }).data;
+      const suffix = attempt > 0 ? ` after retry ${attempt}` : '';
+      recordHealth(healthKey, true, `ok ${(performance.now()-t0).toFixed(0)}ms${suffix}`);
+      return data;
+    } catch(err){
+      lastErr = err;
+      if(attempt < retries){
+        await sleepMs_(retryDelayMs * (attempt + 1));
+        continue;
+      }
+      recordHealth(healthKey, false, err && err.message ? err.message : String(err));
+      throw err;
+    }
   }
+  throw lastErr || new Error('CSV fetch failed');
 }
 
 
@@ -4840,6 +4871,111 @@ async function updateOrderWorkflowStatus(kind, value){
   }catch(e){ showLoading(false); console.error(e); alert('更新失敗：連線錯誤'); }
 }
 
+function cleanDetailName_(raw){
+  return String(raw || '')
+    .trim()
+    .replace(/^\[贈品\]\s*/, '')
+    .replace(/^\[Gift\]\s*/i, '')
+    .replace(/^(贈品|贈)\s*[:：]\s*/, '')
+    .trim();
+}
+
+function splitBundleSummaryParts_(summary){
+  const src = String(summary || '').trim();
+  if(!src) return [];
+  return src.split(/[|｜]/).map(cleanDetailName_).filter(Boolean);
+}
+
+function bundleSummaryFromSelfSelectSpec_(spec){
+  const src = String(spec || '').trim();
+  if(!src) return '';
+  if(!/(自選|任選|買一送一|買二送一|買[一二三四五六七八九十0-9]+送[一二三四五六七八九十0-9]+)/.test(src)) return '';
+  let cleaned = src
+    .replace(/^\s*\[[^\]]*(?:自選|任選)[^\]]*\]\s*/i, '')
+    .replace(/^\s*【[^】]*(?:自選|任選)[^】]*】\s*/i, '')
+    .replace(/^\s*(?:自選|任選)\s*[:：]?\s*/i, '')
+    .trim();
+  const parts = cleaned.split(/[+＋]/).map(cleanDetailName_).filter(Boolean);
+  return parts.length >= 2 ? parts.join('|') : '';
+}
+
+function summarizeParts_(parts, qtyMultiplier){
+  const counts = new Map();
+  const order = [];
+  const mul = Math.max(1, Number(qtyMultiplier || 1));
+  (parts || []).forEach(name => {
+    const n = cleanDetailName_(name);
+    if(!n) return;
+    if(!counts.has(n)){ counts.set(n, 0); order.push(n); }
+    counts.set(n, counts.get(n) + mul);
+  });
+  return order.map(name => ({ name, qty: counts.get(name) }));
+}
+
+function getOrderLineBundleSummary_(obj){
+  if(!obj) return '';
+  const selfSelect = bundleSummaryFromSelfSelectSpec_(obj.spec || '');
+  if(selfSelect) return selfSelect;
+
+  const existing = String(obj.bundle_summary || obj.Content || '').trim();
+  if(existing) return existing;
+
+  const code = String(obj.product_code || '').trim();
+  if(code && PRODUCT_BUNDLE_MAP.has(code)) return PRODUCT_BUNDLE_MAP.get(code);
+
+  const nk = normalizeStr(String(obj.product_name || '').trim().replace(/[()（）【】\[\]「」『』《》<>]/g, ''));
+  if(nk && PRODUCT_BUNDLE_MAP.has(nk)) return PRODUCT_BUNDLE_MAP.get(nk);
+  return '';
+}
+
+function buildOrderDetailLineCard_(obj, opts = {}){
+  const isGift = !!opts.gift;
+  const mainName = cleanDetailName_(obj && obj.product_name) || (isGift ? '贈品' : '商品');
+  const qty = Math.max(1, Number((obj && obj.qty) || 1));
+  const amount = !isGift && obj && obj.line_total !== undefined && obj.line_total !== null && obj.line_total !== ''
+    ? `　$${Number(obj.line_total || 0).toLocaleString()}`
+    : '';
+  const spec = obj && obj.spec ? String(obj.spec).trim() : '';
+  const bundleSummary = getOrderLineBundleSummary_(obj);
+  const parts = splitBundleSummaryParts_(bundleSummary);
+  const shouldShowBreakdown = parts.length > 1 || (parts.length === 1 && cleanDetailName_(parts[0]) !== mainName);
+  const breakdown = shouldShowBreakdown ? summarizeParts_(parts, qty) : [];
+  const label = isGift ? '贈品內容' : '實際明細';
+
+  const metaRows = [];
+  if(spec) metaRows.push(`規格：${escapeHtml(spec)}`);
+  if(amount) metaRows.push(escapeHtml(amount.trim()));
+
+  return `<div class="order-detail-card ${isGift ? 'gift' : ''}">
+    <div class="order-detail-main">
+      <div class="order-detail-name">${isGift ? '🎁 ' : ''}${escapeHtml(mainName)}</div>
+      <div class="order-detail-qty">x${qty}</div>
+    </div>
+    ${metaRows.length ? `<div class="order-detail-meta">${metaRows.join('<br>')}</div>` : ''}
+    ${breakdown.length ? `<div class="order-detail-breakdown">
+      <div class="order-detail-breakdown-title">${label}</div>
+      ${breakdown.map(x => `<div class="order-detail-breakdown-line"><span class="order-detail-line-name">${escapeHtml(x.name)}</span><span class="order-detail-line-qty">x${x.qty}</span></div>`).join('')}
+    </div>` : ''}
+  </div>`;
+}
+
+function buildOrderDetailsHtml_(raw){
+  const itemRows = Array.isArray(raw && raw.items) ? raw.items : [];
+  const giftRows = Array.isArray(raw && raw.gifts) ? raw.gifts : [];
+  let html = '';
+  if(itemRows.length){
+    html += `<div class="order-detail-section"><div class="order-detail-section-title">購買商品</div>`;
+    html += itemRows.map(it => buildOrderDetailLineCard_(it, { gift:false })).join('');
+    html += `</div>`;
+  }
+  if(giftRows.length){
+    html += `<div class="order-detail-section"><div class="order-detail-section-title">贈品</div>`;
+    html += giftRows.map(g => buildOrderDetailLineCard_(g, { gift:true })).join('');
+    html += `</div>`;
+  }
+  return html || '<div style="color:#90a4ae;font-weight:800;padding:8px 0">無明細</div>';
+}
+
 // 開啟訂單視窗 (View/Edit)
 function openOrderModal(oid, mode) {
   const order = DATA.orders.find(o => o.id === oid);
@@ -4872,25 +5008,8 @@ function openOrderModal(oid, mode) {
   document.getElementById('e-total').innerText = (order.raw.totals && order.raw.totals.pay) ? order.raw.totals.pay.toLocaleString() : "0";
   renderOrderWorkflowPanel(order);
 
-  // 2. 渲染商品列表
-  let html = ''; 
-  if(order.raw.items) {
-      order.raw.items.forEach(it => { 
-          html += `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:14px;">
-              <span>${it.product_name}</span>
-              <span style="font-weight:700">x${it.qty}</span>
-          </div>`;
-      });
-  }
-  if(order.raw.gifts) {
-      order.raw.gifts.forEach(g => { 
-          html += `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;color:var(--accent);font-size:14px;">
-              <span>🎁 ${g.product_name}</span>
-              <span style="font-weight:700">x${g.qty}</span>
-          </div>`;
-      });
-  }
-  document.getElementById('e-items').innerHTML = html;
+  // 2. 渲染購買明細（V98.14.05：依 Orders.Raw JSON 展開產品組 / 任選系列 / 買一送一內容）
+  document.getElementById('e-items').innerHTML = buildOrderDetailsHtml_(order.raw);
 
   // 3. 設定模式並開啟
   switchEditMode(mode === 'edit'); 
@@ -4932,6 +5051,12 @@ function saveOrderAction() {
 
     const fillBundleSummary = (obj) => {
         if(!obj || obj.bundle_summary) return;
+
+        const selfSelectSummary = bundleSummaryFromSelfSelectSpec_(obj.spec || '');
+        if(selfSelectSummary){
+            obj.bundle_summary = selfSelectSummary;
+            return;
+        }
 
         const code = (obj.product_code || "").toString().trim();
         if(code && PRODUCT_BUNDLE_MAP.has(code)) {
@@ -5444,11 +5569,16 @@ function updateLastSyncText() {
 }
 
 async function refreshOrdersOnly(silent = true) {
+  if(__ordersRefreshInflight){
+    if(!silent) showToast('訂單資料更新中，請稍候');
+    return;
+  }
+  __ordersRefreshInflight = true;
   try {
     const editModal = document.getElementById('editModal');
     if(editModal && editModal.classList.contains('open')) return;
 
-    const ord = await fetchCSV(getOrdersCsvUrl(), { cacheBust: true, healthKey: 'orders' });
+    const ord = await fetchCSV(getOrdersCsvUrl(), { cacheBust: true, healthKey: 'orders', retries: 1 });
     processOrders(ord);
     updateDashboard();
     renderCurrentTable();
@@ -5456,6 +5586,8 @@ async function refreshOrdersOnly(silent = true) {
   } catch(e) {
     console.error('refreshOrdersOnly failed', e);
     if(!silent) alert('更新訂單資料失敗，請確認網路或 Orders CSV 設定。');
+  } finally {
+    __ordersRefreshInflight = false;
   }
 }
 
@@ -5701,8 +5833,39 @@ function gasFetchTokenNoPrompt(payload) {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: "payload=" + encodeURIComponent(JSON.stringify(payload)),
       cache: "no-store"
-  }).then(r => r.json());
+  }).then(async r => {
+      const txt = await r.text();
+      let j = null;
+      try { j = JSON.parse(txt); } catch(e) {}
+      if(!r.ok) throw new Error(`HTTP ${r.status}`);
+      if(!j) throw new Error('GAS response is not JSON');
+      return j;
+  });
 }
+
+async function gasFetchTokenNoPromptRetry_(payload, opts = {}){
+  const attempts = Number.isFinite(Number(opts.attempts)) ? Math.max(1, Number(opts.attempts)) : 2;
+  const delayMs = Number.isFinite(Number(opts.delayMs)) ? Math.max(0, Number(opts.delayMs)) : 800;
+  let lastErr = null;
+  for(let i=0; i<attempts; i++){
+    try { return await gasFetchTokenNoPrompt(payload); }
+    catch(e){
+      lastErr = e;
+      if(i < attempts - 1) await sleepMs_(delayMs * (i + 1));
+    }
+  }
+  throw lastErr || new Error('GAS request failed');
+}
+
+function isGasBusyResponse_(res){
+  const msg = String((res && (res.error || res.reason || res.message)) || '');
+  return !!(res && (res.busy || /already running|running|busy|重建中/i.test(msg)));
+}
+
+function isAuthErrorMessage_(msg){
+  return /token|unauthorized|expired|權限|登入/i.test(String(msg || ''));
+}
+
 
 function authInvalidate(message){
   clearSavedToken();
@@ -5751,14 +5914,39 @@ async function syncLatestData(silent = false, isRetry = false) {
     openAuthModal('請先登入後同步最新資料');
     return;
   }
+  if(__syncLatestInflight){
+    if(!silent) showToast('同步最新資料執行中，請稍候');
+    return;
+  }
 
+  __syncLatestInflight = true;
   try{
-    showLoading(true, '正在重建統計...');
-    const res = await gasFetchTokenNoPrompt({ action: 'manual_rebuild_stats' });
-    if(!(res && res.ok)){
+    showLoading(true, '正在確認統計狀態...');
+    let status = null;
+    try { status = await gasFetchTokenNoPromptRetry_({ action: 'stats_status' }, { attempts: 1 }); }
+    catch(e){ console.warn('stats_status failed; continue with manual rebuild', e); }
+
+    if(status && status.ok && status.running){
+      showLoading(true, '統計正在重建，先更新資料...');
+      await refreshAllData(true);
       showLoading(false);
-      const errMsg = (res && res.error) ? String(res.error) : '未知錯誤';
-      if(!isRetry && /token|unauthorized|expired/i.test(errMsg)){
+      if(!silent) showToast('統計正在重建中，已先更新訂單資料', 2400);
+      return;
+    }
+
+    showLoading(true, '正在重建統計...');
+    const res = await gasFetchTokenNoPromptRetry_({ action: 'manual_rebuild_stats' }, { attempts: 2, delayMs: 900 });
+    if(!(res && res.ok)){
+      const errMsg = (res && (res.error || res.reason || res.message)) ? String(res.error || res.reason || res.message) : '未知錯誤';
+      if(isGasBusyResponse_(res)){
+        showLoading(true, '統計正在重建，先更新資料...');
+        await refreshAllData(true);
+        showLoading(false);
+        if(!silent) showToast('統計正在重建中，已先更新訂單資料', 2400);
+        return;
+      }
+      if(!isRetry && isAuthErrorMessage_(errMsg)){
+        showLoading(false);
         clearSavedToken();
         ADMIN_TOKEN = null;
         updateAuthUI();
@@ -5766,6 +5954,7 @@ async function syncLatestData(silent = false, isRetry = false) {
         openAuthModal('權限已失效，請重新登入後同步最新資料');
         return;
       }
+      showLoading(false);
       alert('統計重建失敗：' + errMsg);
       return;
     }
@@ -5776,11 +5965,22 @@ async function syncLatestData(silent = false, isRetry = false) {
     updateLastSyncText();
     if(!silent) showToast('同步完成');
   }catch(e){
-    showLoading(false);
     console.error('syncLatestData failed', e);
-    if(!silent) alert('同步最新資料失敗，請確認網路或 GAS 部署版本。');
+    try{
+      showLoading(true, 'GAS 暫時無法連線，先更新訂單資料...');
+      await refreshOrdersOnly(true);
+      showLoading(false);
+      if(!silent) showToast('GAS 暫時無法完成統計重建，已先更新訂單資料', 2800);
+    }catch(e2){
+      showLoading(false);
+      console.error('syncLatestData fallback refresh failed', e2);
+      if(!silent) alert('同步最新資料失敗：網路連線不穩或 GAS 暫時無回應，請稍後重試。');
+    }
+  }finally{
+    __syncLatestInflight = false;
   }
 }
+
 
 function bindMetaButtons() {
   const doRefresh = () => syncLatestData(false);
