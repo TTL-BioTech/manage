@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-<title>TTL BIO-TECH 戰情中心 V98.14.07</title>
+<title>TTL BIO-TECH 戰情中心 V98.14.08</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#00897b">
   <meta name="apple-mobile-web-app-title" content="TTL-Bio Dashboard">
@@ -924,6 +924,15 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 .order-badge.pay-unpaid{background:#fff7ed;color:#c2410c;}
 .order-badge.pick-picked{background:#dbeafe;color:#1d4ed8;}
 .order-badge.pick-unpicked{background:#f1f5f9;color:#475569;}
+.order-badge.pickup-self{background:#f5f5f5;color:#607d8b;border:1px solid #e0e0e0;}
+.order-badge.pickup-delivery{background:#fff3e0;color:#e65100;border:1px solid #ffe0b2;}
+.order-filter-groups{display:flex;flex-direction:column;gap:12px;}
+.order-filter-group{border:1px solid #edf2f7;border-radius:14px;padding:10px 10px 8px;background:#fbfdff;}
+.order-filter-group-title{font-size:13px;font-weight:950;color:#00695c;margin-bottom:6px;display:flex;align-items:center;gap:5px;}
+.order-filter-hint{font-size:11px;font-weight:800;color:#90a4ae;margin-left:auto;}
+.order-filter-group .filter-row{padding:9px 0;}
+.order-filter-group .filter-row:last-child{border-bottom:0;}
+.order-filter-sep{border:0;border-top:1px dashed #e5e7eb;margin:2px 0;}
 .workflow-panel{background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:10px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px;}
 .workflow-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
 .workflow-label{font-size:12px;color:#607d8b;font-weight:900;min-width:68px;}
@@ -943,7 +952,7 @@ tr.active-row .prod-name-cell { color: #1b5e20; font-size: 17px; font-weight: 90
 
 <div id="loading-mask">
   <div class="spinner"></div>
-  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.14.07)...</div>
+  <div id="loading-text" style="font-weight:700;color:#546e7a;font-size:15px">系統初始化 (V98.14.08)...</div>
 </div>
 
 <div id="restoreWidget" onclick="toggleRestoreList(event)">
@@ -1429,7 +1438,7 @@ hydrateSavedAuth();
 const STOCK_UNI_COLOR = "#1e88e5";
 const AVG_GRAY_COLOR = "#90a4ae";
 
-const APP_VERSION = '98.14.07';
+const APP_VERSION = '98.14.08';
 try{
   document.title = `TTL BIO-TECH 戰情中心 V${APP_VERSION}`;
   const lt = document.getElementById('loading-text');
@@ -3373,9 +3382,26 @@ function getSortHeader(key, label) {
 
 function normalizePaymentStatus(v){ return String(v || '').toLowerCase() === 'paid' ? 'paid' : 'unpaid'; }
 function normalizePickupStatus(v){ return String(v || '').toLowerCase() === 'picked' ? 'picked' : 'unpicked'; }
+function normalizePickupMethod(v){ return String(v || '').trim() === '宅配' ? '宅配' : '自取'; }
 function paymentBadgeHtml(v){ const st = normalizePaymentStatus(v); return `<span class="order-badge pay-${st}">${st==='paid'?'已付':'未付'}</span>`; }
-function pickupBadgeHtml(v){ const st = normalizePickupStatus(v); return `<span class="order-badge pick-${st}">${st==='picked'?'已領':'未領'}</span>`; }
+function pickupMethodBadgeHtml(v){ const method = normalizePickupMethod(v); const cls = method === '宅配' ? 'pickup-delivery' : 'pickup-self'; return `<span class="order-badge ${cls}">${method}</span>`; }
+function pickupStatusLabel(v, pickupMethod){
+  const st = normalizePickupStatus(v);
+  const method = normalizePickupMethod(pickupMethod);
+  if(method === '宅配') return st === 'picked' ? '已領(已出貨)' : '未領(未出貨)';
+  return st === 'picked' ? '已領' : '未領';
+}
+function pickupBadgeHtml(v, pickupMethod){ const st = normalizePickupStatus(v); return `<span class="order-badge pick-${st}">${pickupStatusLabel(st, pickupMethod)}</span>`; }
 function orderRowClass(o){ return `${normalizePaymentStatus(o.paymentStatus)==='paid'?'order-paid-row':''} ${normalizePickupStatus(o.pickupStatus)==='picked'?'order-picked-row':''}`.trim(); }
+function getOrderFilterSummaryText(){
+  const parts = [];
+  if(SELECTED_ORDER_PICKUPS && SELECTED_ORDER_PICKUPS.size > 0) parts.push('取貨：' + [...SELECTED_ORDER_PICKUPS].join('、'));
+  if(SELECTED_ORDER_PAYMENT_STATUSES && SELECTED_ORDER_PAYMENT_STATUSES.size > 0) parts.push('付款：' + [...SELECTED_ORDER_PAYMENT_STATUSES].map(x => x === 'paid' ? '已付' : '未付').join('、'));
+  if(SELECTED_ORDER_PICKUP_STATUSES && SELECTED_ORDER_PICKUP_STATUSES.size > 0) parts.push('領貨：' + [...SELECTED_ORDER_PICKUP_STATUSES].map(x => x === 'picked' ? '已領' : '未領').join('、'));
+  if(SELECTED_ORDER_DEPTS && SELECTED_ORDER_DEPTS.size > 0) parts.push('部門：' + [...SELECTED_ORDER_DEPTS].join('、'));
+  return parts.length ? parts.join('｜') : '全部訂單';
+}
+
 function getFilteredOrders(qRaw){
   const q = String(qRaw || '').toLowerCase().trim();
   let list = DATA.orders.filter(o => o.id.toLowerCase().includes(q) || String(o.name||'').includes(q) || String(o.pickupCode||'').toLowerCase().includes(q));
@@ -3469,38 +3495,47 @@ function openFilterSheet() {
     }
     else if(CURRENT_TAB === 'orders') {
         visSection.style.display = 'none';
-        statusTitle.innerText = '訂單篩選 (可複選)';
-        statusAll.style.display = 'none';
+        statusTitle.innerText = '訂單篩選';
+        statusAll.style.display = 'inline';
+        statusAll.innerText = '全部顯示';
         const depts = [...new Set(DATA.orders.map(o => String(o.dept||'').trim()))].filter(Boolean).sort();
-        const pickups = ["自取", "宅配"];
-        const rows = [
-          {kind:'all', label:'全選所有項目'}, {kind:'sep'},
-          {kind:'pay', value:'unpaid', label:'付款：未付'}, {kind:'pay', value:'paid', label:'付款：已付'}, {kind:'sep'},
-          {kind:'pickupStatus', value:'unpicked', label:'領貨：未領'}, {kind:'pickupStatus', value:'picked', label:'領貨：已領'}, {kind:'sep'},
-          ...pickups.map(x => ({kind:'pickup', value:x, label:'取貨：' + x})), {kind:'sep'},
-          ...depts.map(x => ({kind:'dept', value:x, label:x}))
+        const defaultAll = {
+          pay: SELECTED_ORDER_PAYMENT_STATUSES.size===0,
+          pickupStatus: SELECTED_ORDER_PICKUP_STATUSES.size===0,
+          pickup: SELECTED_ORDER_PICKUPS.size===0,
+          dept: SELECTED_ORDER_DEPTS.size===0
+        };
+        const groups = [
+          {title:'取貨方式', hint:'自取 / 宅配', rows:[{kind:'pickup', value:'自取', label:'自取'}, {kind:'pickup', value:'宅配', label:'宅配'}]},
+          {title:'付款狀態', hint:'已付 / 未付', rows:[{kind:'pay', value:'paid', label:'已付'}, {kind:'pay', value:'unpaid', label:'未付'}]},
+          {title:'領貨狀態', hint:'宅配未領=未出貨', rows:[{kind:'pickupStatus', value:'picked', label:'已領'}, {kind:'pickupStatus', value:'unpicked', label:'未領'}]}
         ];
-        const defaultAll = { pay: SELECTED_ORDER_PAYMENT_STATUSES.size===0, pickupStatus: SELECTED_ORDER_PICKUP_STATUSES.size===0, pickup: SELECTED_ORDER_PICKUPS.size===0, dept: SELECTED_ORDER_DEPTS.size===0 };
-        rows.forEach(row => {
-            if(row.kind === 'sep') { optsDiv.appendChild(document.createElement("hr")); return; }
-            const isAll = row.kind === 'all';
-            const value = isAll ? '' : `${row.kind}:${row.value}`;
-            let checked = false;
-            if(!isAll) {
-              if(row.kind === 'pay') checked = defaultAll.pay ? true : SELECTED_ORDER_PAYMENT_STATUSES.has(row.value);
-              if(row.kind === 'pickupStatus') checked = defaultAll.pickupStatus ? true : SELECTED_ORDER_PICKUP_STATUSES.has(row.value);
-              if(row.kind === 'pickup') checked = defaultAll.pickup ? true : SELECTED_ORDER_PICKUPS.has(row.value);
-              if(row.kind === 'dept') checked = defaultAll.dept ? true : SELECTED_ORDER_DEPTS.has(row.value);
-            }
+        if(depts.length) groups.push({title:'部門', hint:'進階篩選', rows:depts.map(x => ({kind:'dept', value:x, label:x}))});
+
+        const shell = document.createElement('div');
+        shell.className = 'order-filter-groups';
+        const isChecked = (row) => {
+          if(row.kind === 'pay') return defaultAll.pay ? true : SELECTED_ORDER_PAYMENT_STATUSES.has(row.value);
+          if(row.kind === 'pickupStatus') return defaultAll.pickupStatus ? true : SELECTED_ORDER_PICKUP_STATUSES.has(row.value);
+          if(row.kind === 'pickup') return defaultAll.pickup ? true : SELECTED_ORDER_PICKUPS.has(row.value);
+          if(row.kind === 'dept') return defaultAll.dept ? true : SELECTED_ORDER_DEPTS.has(row.value);
+          return false;
+        };
+        groups.forEach(group => {
+          const box = document.createElement('div');
+          box.className = 'order-filter-group';
+          box.innerHTML = `<div class="order-filter-group-title"><span>${group.title}</span><span class="order-filter-hint">${group.hint || ''}</span></div>`;
+          group.rows.forEach(row => {
+            const value = `${row.kind}:${row.value}`;
             const div = document.createElement('div');
-            div.className = "filter-row";
-            if(isAll) div.style.color = "var(--primary)";
-            div.onclick = function() { if(isAll) { toggleAllFilters(true,'status'); return; } const chk = this.querySelector('input'); chk.checked = !chk.checked; };
-            div.innerHTML = isAll
-                ? `<span class="material-icons-round" style="margin-right:12px">done_all</span><span class="filter-label">全選所有項目</span>`
-                : `<input type="checkbox" class="filter-chk" value="${value}" ${checked ? 'checked' : ''} onclick="event.stopPropagation()"><span class="filter-label">${row.label}</span>`;
-            optsDiv.appendChild(div);
+            div.className = 'filter-row';
+            div.onclick = function() { const chk = this.querySelector('input'); chk.checked = !chk.checked; };
+            div.innerHTML = `<input type="checkbox" class="filter-chk" value="${value}" ${isChecked(row) ? 'checked' : ''} onclick="event.stopPropagation()"><span class="filter-label">${row.label}</span>`;
+            box.appendChild(div);
+          });
+          shell.appendChild(box);
         });
+        optsDiv.appendChild(shell);
     } else {
         // Other tabs: hide filter sheet content
         statusHead.style.display = 'none';
@@ -3777,7 +3812,7 @@ if(SORT.key) {
                             <span>${o.time.split(' ')[0]}</span>
                         </div>
                         <div class="mc-main-text" style="font-size:16px;">${o.name} <span style="font-size:13px;font-weight:400;color:#666">(${o.dept})</span></div>
-                        <div class="order-status-badges" style="margin:6px 0;">${paymentBadgeHtml(o.paymentStatus)}${pickupBadgeHtml(o.pickupStatus)}<span class="pickup-code-chip" style="font-size:11px;padding:3px 6px">${o.pickupCode || '—'}</span></div>
+                        <div class="order-status-badges" style="margin:6px 0;">${pickupMethodBadgeHtml(o.pickup)}${paymentBadgeHtml(o.paymentStatus)}${pickupBadgeHtml(o.pickupStatus, o.pickup)}<span class="pickup-code-chip" style="font-size:11px;padding:3px 6px">${o.pickupCode || '—'}</span></div>
                         <div class="mc-order-footer">
                              <div class="mc-order-total">$${o.total.toLocaleString()}</div>
                              <div>
@@ -3852,7 +3887,7 @@ if(SORT.key) {
             const unpaidCount = list.filter(o => normalizePaymentStatus(o.paymentStatus) !== 'paid').length;
             const unpickedCount = list.filter(o => normalizePickupStatus(o.pickupStatus) !== 'picked').length;
             subHeader.innerHTML = `
-                <span>總筆數: ${list.length} / 總金額: $${totalSum.toLocaleString()}　<span style="font-size:12px;color:#c2410c">未付 ${unpaidCount}</span>　<span style="font-size:12px;color:#1d4ed8">未領 ${unpickedCount}</span></span>
+                <span>總筆數: ${list.length} / 總金額: $${totalSum.toLocaleString()}　<span style="font-size:12px;color:#c2410c">未付 ${unpaidCount}</span>　<span style="font-size:12px;color:#1d4ed8">未領 ${unpickedCount}</span><br><span style="font-size:11px;color:#607d8b">篩選：${getOrderFilterSummaryText()}</span></span>
                 <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
                   <button onclick="openPickupScanModal()" style="border:1px solid #00695c;background:#fff;color:#00695c;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px"><span class="material-icons-round" style="font-size:16px">qr_code_scanner</span> 掃描</button>
                   <button onclick="showItemStats()" style="border:1px solid #2e7d32;background:#fff;color:#2e7d32;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:4px"><span class="material-icons-round" style="font-size:16px">poll</span> 貨品統計</button>
@@ -3873,10 +3908,7 @@ if(SORT.key) {
             </tr></thead><tbody>`;
 
             list.forEach(o => { 
-                // 判斷取貨方式顯示顏色
-                const pickupBadge = o.pickup === '宅配' 
-                    ? `<span style="background:#fff3e0;color:#e65100;padding:2px 6px;border-radius:4px;font-size:12px">宅配</span>`
-                    : `<span style="background:#f5f5f5;color:#607d8b;padding:2px 6px;border-radius:4px;font-size:12px">自取</span>`;
+                const pickupBadge = pickupMethodBadgeHtml(o.pickup);
 
                 html += `
                 <tr class="${orderRowClass(o)}" style="cursor:pointer" onclick="openOrderModal('${o.id}','view')">
@@ -3886,7 +3918,7 @@ if(SORT.key) {
                     <td><span style="font-size:13px;color:#546e7a">${o.dept}</span></td>
                     <td>${pickupBadge}</td>
                     <td>${paymentBadgeHtml(o.paymentStatus)}</td>
-                    <td>${pickupBadgeHtml(o.pickupStatus)}</td>
+                    <td>${pickupBadgeHtml(o.pickupStatus, o.pickup)}</td>
                     <td style="font-weight:700">$${o.total.toLocaleString()}</td>
                     <td>
                         <span class="material-icons-round act-btn" onclick="openOrderModal('${o.id}','edit');event.stopPropagation()">edit</span>
@@ -4848,8 +4880,13 @@ function renderOrderWorkflowPanel(order){
   if(!order) return;
   const pay = normalizePaymentStatus(order.paymentStatus || (order.raw && order.raw.payment_status));
   const pick = normalizePickupStatus(order.pickupStatus || (order.raw && order.raw.pickup_status));
+  const pickupMethod = normalizePickupMethod(order.pickup || (order.raw && order.raw.pickup_method));
   const codeEl = document.getElementById('e-pickup-code');
   if(codeEl) codeEl.textContent = order.pickupCode || (order.raw && order.raw.pickup_code) || '—';
+  const unpickBtn = document.getElementById('e-pick-unpicked');
+  const pickBtn = document.getElementById('e-pick-picked');
+  if(unpickBtn) unpickBtn.textContent = pickupStatusLabel('unpicked', pickupMethod);
+  if(pickBtn) pickBtn.textContent = pickupStatusLabel('picked', pickupMethod);
   const btns = [['e-pay-unpaid', pay === 'unpaid', 'unpay'], ['e-pay-paid', pay === 'paid', 'pay'], ['e-pick-unpicked', pick === 'unpicked', 'unpicked'], ['e-pick-picked', pick === 'picked', 'picked']];
   btns.forEach(([id, active, kind]) => { const el = document.getElementById(id); if(el) el.className = 'workflow-pill' + (active ? ' active ' + kind : ''); });
 }
